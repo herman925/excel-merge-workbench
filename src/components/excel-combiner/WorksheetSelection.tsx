@@ -92,14 +92,23 @@ export function WorksheetSelection({
     }
     
     try {
-      const columns = await parseWorksheetColumns(file.file, worksheetName, 1);
+      const headerRow = existing?.headerRow || 1;
+      const columns = await parseWorksheetColumns(file.file, worksheetName, headerRow);
+      
+      console.log(`Loaded columns for ${file.name} - ${worksheetName}:`, columns);
       
       const newWorksheet: WorksheetData = {
         fileId,
         worksheetName,
-        headerRow: 1,
-        columns: columns
+        headerRow,
+        columns: columns,
+        keyColumn: existing?.keyColumn // Preserve existing key column if it exists in new columns
       };
+
+      // If the existing key column doesn't exist in new columns, clear it
+      if (newWorksheet.keyColumn && !columns.includes(newWorksheet.keyColumn)) {
+        newWorksheet.keyColumn = undefined;
+      }
 
       if (existing) {
         onWorksheetsChange(
@@ -114,8 +123,9 @@ export function WorksheetSelection({
       const newWorksheet: WorksheetData = {
         fileId,
         worksheetName,
-        headerRow: 1,
-        columns: ['Column A', 'Column B', 'Column C'] // Fallback
+        headerRow: existing?.headerRow || 1,
+        columns: ['Column A', 'Column B', 'Column C'], // Fallback
+        keyColumn: existing?.keyColumn
       };
 
       if (existing) {
