@@ -13,6 +13,8 @@ interface WorksheetSelectionProps {
   selectedFiles: ExcelFile[];
   selectedWorksheets: WorksheetData[];
   onWorksheetsChange: (worksheets: WorksheetData[]) => void;
+  keyColumn?: string;
+  onKeyColumnChange: (keyColumn: string) => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -21,6 +23,8 @@ export function WorksheetSelection({
   selectedFiles,
   selectedWorksheets,
   onWorksheetsChange,
+  keyColumn,
+  onKeyColumnChange,
   onNext,
   onBack
 }: WorksheetSelectionProps) {
@@ -220,8 +224,21 @@ export function WorksheetSelection({
     return selectedWorksheets.find(w => w.fileId === fileId);
   };
 
-  const canProceed = selectedWorksheets.length > 0; // At least one worksheet must be selected
+  // Get common columns across all selected worksheets
+  const getCommonColumns = () => {
+    if (selectedWorksheets.length === 0) return [];
+    
+    const allColumns = selectedWorksheets.map(w => w.columns);
+    if (allColumns.length === 0) return [];
+    
+    return allColumns[0].filter(column => 
+      allColumns.every(worksheetColumns => worksheetColumns.includes(column))
+    );
+  };
+
+  const canProceed = selectedWorksheets.length > 0;
   const availableGlobalWorksheets = getAvailableWorksheets();
+  const commonColumns = getCommonColumns();
 
   return (
     <div className="p-8">
@@ -300,6 +317,59 @@ export function WorksheetSelection({
                   This will set "{globalWorksheet}" with header row {globalHeaderRow} for all files that contain this worksheet
                 </p>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Key Column Selection */}
+        {selectedWorksheets.length > 1 && commonColumns.length > 0 && (
+          <Card className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <Settings className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <div>
+                  <h3 className="font-semibold text-blue-900 dark:text-blue-100">Key Column Matching</h3>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Select a common column to match rows across files (recommended for accurate data combination)
+                  </p>
+                </div>
+              </div>
+              
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Key Column</Label>
+                  <Select value={keyColumn || '__none__'} onValueChange={(value) => onKeyColumnChange(value === '__none__' ? '' : value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select key column..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white z-50">
+                      <SelectItem value="__none__">
+                        <span className="text-muted-foreground italic">Use row position (not recommended)</span>
+                      </SelectItem>
+                      {commonColumns.map((column) => (
+                        <SelectItem key={column} value={column}>
+                          {column}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-end">
+                  <div className="text-sm text-blue-700 dark:text-blue-300">
+                    {keyColumn ? (
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span>Rows will be matched by "{keyColumn}" values</span>
+                      </div>
+                    ) : (
+                      <div className="text-orange-600 dark:text-orange-400">
+                        Rows will be combined by position (may cause misalignment)
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}

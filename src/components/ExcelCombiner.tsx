@@ -35,6 +35,7 @@ export function ExcelCombiner() {
   const [currentStep, setCurrentStep] = useState<Step>('file-selection');
   const [selectedFiles, setSelectedFiles] = useState<ExcelFile[]>([]);
   const [selectedWorksheets, setSelectedWorksheets] = useState<WorksheetData[]>([]);
+  const [keyColumn, setKeyColumn] = useState<string>('');
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
   const [results, setResults] = useState<ProcessingResults | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -77,7 +78,7 @@ export function ExcelCombiner() {
     setIsProcessing(true);
     
     try {
-      const processor = new ExcelProcessor(selectedFiles, selectedWorksheets, columnMappings);
+      const processor = new ExcelProcessor(selectedFiles, selectedWorksheets, columnMappings, keyColumn);
       const processingResults = await processor.processFiles();
       
       setResults(processingResults);
@@ -189,6 +190,8 @@ export function ExcelCombiner() {
               selectedFiles={selectedFiles}
               selectedWorksheets={selectedWorksheets}
               onWorksheetsChange={setSelectedWorksheets}
+              keyColumn={keyColumn}
+              onKeyColumnChange={setKeyColumn}
               onNext={handleNext}
               onBack={handleBack}
             />

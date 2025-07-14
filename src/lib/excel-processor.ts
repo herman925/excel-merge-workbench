@@ -37,11 +37,13 @@ export class ExcelProcessor {
   private files: ExcelFile[];
   private worksheets: WorksheetData[];
   private mappings: ColumnMapping[];
+  private keyColumn?: string;
 
-  constructor(files: ExcelFile[], worksheets: WorksheetData[], mappings: ColumnMapping[]) {
+  constructor(files: ExcelFile[], worksheets: WorksheetData[], mappings: ColumnMapping[], keyColumn?: string) {
     this.files = files;
     this.worksheets = worksheets;
     this.mappings = mappings;
+    this.keyColumn = keyColumn;
   }
 
   async processFiles(): Promise<ProcessingResults> {
@@ -90,42 +92,14 @@ export class ExcelProcessor {
     const totalRows = Array.from(fileDataMap.values()).reduce((sum, data) => sum + data.length, 0);
     console.log(`Processed ${totalRows} total rows from ${successfulFiles} files`);
 
-    // Combine data from all files row by row (align by row index)
-    const maxRowCount = Math.max(...Array.from(fileDataMap.values()).map(data => data.length));
-    const combinedRowsData: RowData[] = [];
-    
-    for (let rowIndex = 0; rowIndex < maxRowCount; rowIndex++) {
-      // For each row position, get data from all files that have this row
-      const combinedRowData: any[] = new Array(this.mappings.length).fill('');
-      
-      // Apply column mappings for this row across all files
-      this.mappings.forEach((mapping, mappingIndex) => {
-        mapping.mappings.forEach(fileMapping => {
-          const fileData = fileDataMap.get(fileMapping.fileId);
-          if (fileData && fileData[rowIndex]) {
-            const worksheet = this.worksheets.find(w => w.fileId === fileMapping.fileId);
-            if (worksheet) {
-              const columnIndex = worksheet.columns.indexOf(fileMapping.column);
-              if (columnIndex >= 0 && columnIndex < fileData[rowIndex].data.length) {
-                const cellValue = fileData[rowIndex].data[columnIndex];
-                if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
-                  combinedRowData[mappingIndex] = cellValue;
-                }
-              }
-            }
-          }
-        });
-      });
-      
-      // Only add row if it has some data
-      if (combinedRowData.some(cell => cell !== '')) {
-        combinedRowsData.push({
-          data: combinedRowData,
-          sourceFile: 'combined',
-          sourceWorksheet: 'combined',
-          originalRowIndex: rowIndex + 1
-        });
-      }
+    let combinedRowsData: RowData[];
+
+    if (this.keyColumn) {
+      // Key-based matching
+      combinedRowsData = this.combineDataByKey(fileDataMap);
+    } else {
+      // Row position matching (fallback)
+      combinedRowsData = this.combineDataByPosition(fileDataMap);
     }
 
     // Detect and handle duplicates
@@ -256,6 +230,125 @@ export class ExcelProcessor {
     });
 
     return { uniqueData, duplicateInfo };
+  }
+
+  private combineDataByKey(fileDataMap: Map<string, RowData[]>): RowData[] {
+    if (!this.keyColumn) return [];
+
+    // Find the key column mapping
+    const keyMapping = this.mappings.find(m => m.outputColumn === this.keyColumn);
+    if (!keyMapping) return [];
+
+    // Create a map of key values to combined rows
+    const keyRowMap = new Map<string, any[]>();
+
+    // First pass: collect all unique key values
+    fileDataMap.forEach((fileRows, fileId) => {
+      const worksheet = this.worksheets.find(w => w.fileId === fileId);
+      if (!worksheet) return;
+
+      const keyFileMapping = keyMapping.mappings.find(m => m.fileId === fileId);
+      if (!keyFileMapping) return;
+
+      const keyColumnIndex = worksheet.columns.indexOf(keyFileMapping.column);
+      if (keyColumnIndex < 0) return;
+
+      fileRows.forEach(row => {
+        const keyValue = String(row.data[keyColumnIndex] || '').trim();
+        if (keyValue && !keyRowMap.has(keyValue)) {
+          keyRowMap.set(keyValue, new Array(this.mappings.length).fill(''));
+        }
+      });
+    });
+
+    // Second pass: populate the combined rows
+    fileDataMap.forEach((fileRows, fileId) => {
+      const worksheet = this.worksheets.find(w => w.fileId === fileId);
+      if (!worksheet) return;
+
+      const keyFileMapping = keyMapping.mappings.find(m => m.fileId === fileId);
+      if (!keyFileMapping) return;
+
+      const keyColumnIndex = worksheet.columns.indexOf(keyFileMapping.column);
+      if (keyColumnIndex < 0) return;
+
+      fileRows.forEach(row => {
+        const keyValue = String(row.data[keyColumnIndex] || '').trim();
+        if (!keyValue || !keyRowMap.has(keyValue)) return;
+
+        const combinedRow = keyRowMap.get(keyValue)!;
+
+        // Apply all column mappings for this file
+        this.mappings.forEach((mapping, mappingIndex) => {
+          const fileMapping = mapping.mappings.find(m => m.fileId === fileId);
+          if (fileMapping) {
+            const columnIndex = worksheet.columns.indexOf(fileMapping.column);
+            if (columnIndex >= 0 && columnIndex < row.data.length) {
+              const cellValue = row.data[columnIndex];
+              if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+                combinedRow[mappingIndex] = cellValue;
+              }
+            }
+          }
+        });
+      });
+    });
+
+    // Convert map to RowData array
+    const combinedRowsData: RowData[] = [];
+    keyRowMap.forEach((rowData, keyValue) => {
+      if (rowData.some(cell => cell !== '')) {
+        combinedRowsData.push({
+          data: rowData,
+          sourceFile: 'combined',
+          sourceWorksheet: 'combined',
+          originalRowIndex: combinedRowsData.length + 1
+        });
+      }
+    });
+
+    return combinedRowsData;
+  }
+
+  private combineDataByPosition(fileDataMap: Map<string, RowData[]>): RowData[] {
+    // Row position matching (fallback)
+    const maxRowCount = Math.max(...Array.from(fileDataMap.values()).map(data => data.length));
+    const combinedRowsData: RowData[] = [];
+    
+    for (let rowIndex = 0; rowIndex < maxRowCount; rowIndex++) {
+      const combinedRowData: any[] = new Array(this.mappings.length).fill('');
+      
+      // Apply column mappings for this row across all files
+      this.mappings.forEach((mapping, mappingIndex) => {
+        mapping.mappings.forEach(fileMapping => {
+          const fileData = fileDataMap.get(fileMapping.fileId);
+          if (fileData && fileData[rowIndex]) {
+            const worksheet = this.worksheets.find(w => w.fileId === fileMapping.fileId);
+            if (worksheet) {
+              const columnIndex = worksheet.columns.indexOf(fileMapping.column);
+              if (columnIndex >= 0 && columnIndex < fileData[rowIndex].data.length) {
+                const cellValue = fileData[rowIndex].data[columnIndex];
+                if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+                  combinedRowData[mappingIndex] = cellValue;
+                }
+              }
+            }
+          }
+        });
+      });
+      
+      // Only add row if it has some data
+      if (combinedRowData.some(cell => cell !== '')) {
+        combinedRowsData.push({
+          data: combinedRowData,
+          sourceFile: 'combined',
+          sourceWorksheet: 'combined',
+          originalRowIndex: rowIndex + 1
+        });
+      }
+    }
+
+    return combinedRowsData;
   }
 
   private detectDataType(values: string[]): string {
