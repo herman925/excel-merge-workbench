@@ -147,6 +147,14 @@ export function WorksheetSelection({
     }
   };
 
+  const updateKeyColumn = (fileId: string, keyColumn: string) => {
+    onWorksheetsChange(
+      selectedWorksheets.map(w => 
+        w.fileId === fileId ? { ...w, keyColumn: keyColumn === '__none__' ? undefined : keyColumn } : w
+      )
+    );
+  };
+
   const applyGlobalSettings = async () => {
     if (!globalWorksheet) return;
     
@@ -441,6 +449,29 @@ export function WorksheetSelection({
                             className="w-16 h-8"
                           />
                         </div>
+
+                        <div className="flex items-center space-x-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <Settings className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <Label className="text-sm flex-1">Key Column:</Label>
+                          <Select
+                            value={selectedWorksheet.keyColumn || '__none__'}
+                            onValueChange={(value) => updateKeyColumn(file.id, value)}
+                          >
+                            <SelectTrigger className="w-32 h-8">
+                              <SelectValue placeholder="None" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white z-50">
+                              <SelectItem value="__none__">
+                                <span className="text-muted-foreground italic">None</span>
+                              </SelectItem>
+                              {selectedWorksheet.columns.map((column) => (
+                                <SelectItem key={column} value={column}>
+                                  {column}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         
                         <div className="space-y-1">
                           <Badge variant="secondary" className="w-fit">
@@ -459,6 +490,44 @@ export function WorksheetSelection({
           })}
           </div>
         </div>
+
+        {/* Key Column Status Summary */}
+        {selectedWorksheets.length > 1 && (
+          <Card className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3 mb-3">
+                <Settings className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <h3 className="font-semibold text-blue-900 dark:text-blue-100">Key Column Status</h3>
+              </div>
+              
+              <div className="space-y-2">
+                {selectedWorksheets.map((worksheet) => {
+                  const file = selectedFiles.find(f => f.id === worksheet.fileId);
+                  return (
+                    <div key={worksheet.fileId} className="flex items-center justify-between text-sm">
+                      <span className="text-blue-800 dark:text-blue-200">
+                        {file?.name || 'Unknown file'}
+                      </span>
+                      <Badge 
+                        variant={worksheet.keyColumn ? "default" : "secondary"}
+                        className={worksheet.keyColumn ? "bg-green-600 text-white" : ""}
+                      >
+                        {worksheet.keyColumn || "No key column"}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-3">
+                {selectedWorksheets.every(w => w.keyColumn) 
+                  ? "✓ All worksheets have key columns - data will be matched accurately"
+                  : "⚠ Some worksheets missing key columns - may cause data misalignment"
+                }
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Progress Summary */}
         {selectedWorksheets.length > 0 && (

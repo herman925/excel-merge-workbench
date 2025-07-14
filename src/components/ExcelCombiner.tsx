@@ -22,6 +22,7 @@ export interface WorksheetData {
   worksheetName: string;
   headerRow: number;
   columns: string[];
+  keyColumn?: string;
 }
 
 export interface ColumnMapping {
