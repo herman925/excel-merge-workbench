@@ -97,7 +97,8 @@ export function ColumnMapping({
   };
 
   const getMappedColumnsCount = () => {
-    return columnMappings.reduce((sum, mapping) => sum + mapping.mappings.length, 0);
+    return columnMappings.reduce((sum, mapping) => 
+      sum + mapping.mappings.filter(m => m.column && m.column.trim().length > 0).length, 0);
   };
 
   const getTotalColumnsCount = () => {
