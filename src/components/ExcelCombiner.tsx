@@ -137,7 +137,7 @@ export function ExcelCombiner() {
               const isAccessible = index <= currentStepIndex;
 
               return (
-                <React.Fragment key={step.id}>
+                <div key={step.id} className="flex items-center">
                   <div 
                     className={`flex flex-col items-center cursor-pointer transition-all duration-200 ${
                       isAccessible ? 'hover:scale-105' : 'cursor-not-allowed opacity-50'
@@ -170,7 +170,7 @@ export function ExcelCombiner() {
                       index < currentStepIndex ? 'text-excel-accent-green' : 'text-muted-foreground'
                     }`} size={20} />
                   )}
-                </React.Fragment>
+                </div>
               );
             })}
           </div>
