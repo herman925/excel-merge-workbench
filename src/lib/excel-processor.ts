@@ -47,8 +47,8 @@ export class ExcelProcessor {
   async processFiles(): Promise<ProcessingResults> {
     console.log('Starting Excel processing...');
     
-    // Read all data from worksheets
-    const allRowsData: RowData[] = [];
+    // Read all data from worksheets organized by file
+    const fileDataMap = new Map<string, RowData[]>();
     const unmappedColumns: UnmappedColumnInfo[] = [];
     let successfulFiles = 0;
 
@@ -58,7 +58,7 @@ export class ExcelProcessor {
 
       try {
         const data = await this.readWorksheetData(file.file, worksheet);
-        allRowsData.push(...data);
+        fileDataMap.set(worksheet.fileId, data);
         successfulFiles++;
 
         // Track unmapped columns
@@ -87,13 +87,49 @@ export class ExcelProcessor {
       }
     }
 
-    console.log(`Processed ${allRowsData.length} total rows from ${successfulFiles} files`);
+    const totalRows = Array.from(fileDataMap.values()).reduce((sum, data) => sum + data.length, 0);
+    console.log(`Processed ${totalRows} total rows from ${successfulFiles} files`);
 
-    // Map data according to column mappings
-    const mappedData = this.applyColumnMappings(allRowsData);
+    // Combine data from all files row by row (align by row index)
+    const maxRowCount = Math.max(...Array.from(fileDataMap.values()).map(data => data.length));
+    const combinedRowsData: RowData[] = [];
     
+    for (let rowIndex = 0; rowIndex < maxRowCount; rowIndex++) {
+      // For each row position, get data from all files that have this row
+      const combinedRowData: any[] = new Array(this.mappings.length).fill('');
+      
+      // Apply column mappings for this row across all files
+      this.mappings.forEach((mapping, mappingIndex) => {
+        mapping.mappings.forEach(fileMapping => {
+          const fileData = fileDataMap.get(fileMapping.fileId);
+          if (fileData && fileData[rowIndex]) {
+            const worksheet = this.worksheets.find(w => w.fileId === fileMapping.fileId);
+            if (worksheet) {
+              const columnIndex = worksheet.columns.indexOf(fileMapping.column);
+              if (columnIndex >= 0 && columnIndex < fileData[rowIndex].data.length) {
+                const cellValue = fileData[rowIndex].data[columnIndex];
+                if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+                  combinedRowData[mappingIndex] = cellValue;
+                }
+              }
+            }
+          }
+        });
+      });
+      
+      // Only add row if it has some data
+      if (combinedRowData.some(cell => cell !== '')) {
+        combinedRowsData.push({
+          data: combinedRowData,
+          sourceFile: 'combined',
+          sourceWorksheet: 'combined',
+          originalRowIndex: rowIndex + 1
+        });
+      }
+    }
+
     // Detect and handle duplicates
-    const { uniqueData, duplicateInfo } = this.handleDuplicates(mappedData);
+    const { uniqueData, duplicateInfo } = this.handleDuplicates(combinedRowsData);
     
     // Generate output headers
     const outputHeaders = this.mappings.map(m => m.outputColumn);
@@ -106,7 +142,7 @@ export class ExcelProcessor {
       combinedData: finalData,
       duplicateRows: duplicateInfo,
       unmappedColumns,
-      totalRowsProcessed: allRowsData.length,
+      totalRowsProcessed: totalRows,
       duplicatesRemoved: duplicateInfo.length,
       successfulFiles,
       previewData
