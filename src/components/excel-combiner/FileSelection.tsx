@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Upload, X, FileSpreadsheet, AlertCircle, Loader2, RotateCcw } from 'lucide-react';
+import { Upload, X, FileSpreadsheet, AlertCircle, Loader2, RotateCcw, RefreshCw } from 'lucide-react';
 import { ExcelFile } from '../ExcelCombiner';
 
 interface FileSelectionProps {
@@ -123,6 +123,35 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
     setLoadingFile('');
   };
 
+  const reloadSingleFile = async (fileId: string) => {
+    const fileToReload = selectedFiles.find(f => f.id === fileId);
+    if (!fileToReload) return;
+
+    setIsLoading(true);
+    setLoadingFile(fileToReload.name);
+
+    try {
+      const worksheets = await parseExcelFile(fileToReload.file);
+      const validWorksheets = worksheets.filter(ws => ws && ws.trim() !== '');
+      
+      const updatedFile = {
+        ...fileToReload,
+        worksheets: validWorksheets.length > 0 ? validWorksheets : ['Sheet1']
+      };
+
+      const updatedFiles = selectedFiles.map(f => 
+        f.id === fileId ? updatedFile : f
+      );
+      
+      onFilesChange(updatedFiles);
+    } catch (error) {
+      console.error(`Failed to reload ${fileToReload.name}:`, error);
+    }
+
+    setIsLoading(false);
+    setLoadingFile('');
+  };
+
   const canProceed = selectedFiles.length >= 2;
 
   return (
@@ -208,19 +237,28 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge variant="secondary">
-                        {file.worksheets.length} sheets
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeFile(file.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
+                     <div className="flex items-center space-x-2">
+                       <Badge variant="secondary">
+                         {file.worksheets.length} sheets
+                       </Badge>
+                       <Button
+                         variant="ghost"
+                         size="sm"
+                         onClick={() => reloadSingleFile(file.id)}
+                         className="text-muted-foreground hover:text-foreground"
+                         disabled={isLoading}
+                       >
+                         <RefreshCw className="h-4 w-4" />
+                       </Button>
+                       <Button
+                         variant="ghost"
+                         size="sm"
+                         onClick={() => removeFile(file.id)}
+                         className="text-destructive hover:text-destructive"
+                       >
+                         <X className="h-4 w-4" />
+                       </Button>
+                     </div>
                   </div>
                 </Card>
               ))}
