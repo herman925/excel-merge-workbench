@@ -92,7 +92,8 @@ export function ColumnPreview({
   };
 
   const getFileName = (fileId: string) => {
-    return fileId.replace('file-', 'File ');
+    const file = selectedFiles.find(f => f.id === fileId);
+    return file ? file.name : fileId.replace('file-', 'File ');
   };
 
   const getTotalColumns = () => {
