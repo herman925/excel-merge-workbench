@@ -63,6 +63,9 @@ export function ExcelCombiner() {
       } else {
         setCurrentStep(nextStep);
       }
+      
+      // Scroll to top of page
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -105,6 +108,8 @@ export function ExcelCombiner() {
     const prevIndex = currentStepIndex - 1;
     if (prevIndex >= 0) {
       setCurrentStep(steps[prevIndex].id as Step);
+      // Scroll to top of page
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
