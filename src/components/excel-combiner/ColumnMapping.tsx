@@ -105,20 +105,15 @@ export function ColumnMapping({
   };
 
   const getMappedColumnsCount = () => {
-    // Count unique column mappings per worksheet
-    const mappedByWorksheet = new Set();
-    columnMappings.forEach(mapping => {
-      mapping.mappings.forEach(m => {
-        if (m.column && m.column.trim().length > 0) {
-          mappedByWorksheet.add(`${m.fileId}-${m.column}`);
-        }
-      });
-    });
-    return mappedByWorksheet.size;
+    // Count how many output columns have at least one valid mapping
+    return columnMappings.filter(mapping => 
+      mapping.mappings.some(m => m.column && m.column.trim().length > 0 && m.column !== "No mapping")
+    ).length;
   };
 
   const getTotalColumnsCount = () => {
-    return selectedWorksheets.reduce((sum, ws) => sum + ws.columns.length, 0);
+    // Total number of output columns
+    return columnMappings.length;
   };
 
   const getMappingCompletionPercent = () => {
