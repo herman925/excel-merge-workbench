@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { ArrowLeft, Wand2, Plus, X, Link, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Wand2, Plus, X, Link, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { WorksheetData, ColumnMapping as ColumnMappingType, ExcelFile } from '../ExcelCombiner';
 
 interface ColumnMappingProps {
@@ -102,6 +102,16 @@ export function ColumnMapping({
     return selectedWorksheets.reduce((sum, ws) => sum + ws.columns.length, 0);
   };
 
+  const getMappingCompletionPercent = () => {
+    const total = getTotalColumnsCount();
+    const mapped = getMappedColumnsCount();
+    return total > 0 ? Math.round((mapped / total) * 100) : 0;
+  };
+
+  const isPerfectMapping = () => {
+    return getMappingCompletionPercent() === 100 && columnMappings.length > 0;
+  };
+
   const canProceed = columnMappings.length > 0 && columnMappings.every(m => m.mappings.length > 0);
 
   return (
@@ -140,18 +150,45 @@ export function ColumnMapping({
         </Card>
 
         {/* Mapping Status */}
-        <Card className="bg-muted/30">
+        <Card className={`transition-all duration-300 ${
+          isPerfectMapping() 
+            ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' 
+            : getMappingCompletionPercent() > 0 
+              ? 'bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800'
+              : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
+        }`}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <Link className="h-5 w-5 text-excel-primary" />
+                {isPerfectMapping() ? (
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                )}
                 <span className="font-medium">
                   {getMappedColumnsCount()} of {getTotalColumnsCount()} columns mapped
                 </span>
               </div>
-              <Badge variant={canProceed ? "default" : "secondary"}>
-                {Math.round((getMappedColumnsCount() / getTotalColumnsCount()) * 100)}% Complete
-              </Badge>
+              <div className="flex items-center space-x-2">
+                <Badge 
+                  variant={isPerfectMapping() ? "default" : "secondary"}
+                  className={`transition-colors duration-300 ${
+                    isPerfectMapping() 
+                      ? 'bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600' 
+                      : getMappingCompletionPercent() > 0
+                        ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                        : 'bg-red-500 hover:bg-red-600 text-white'
+                  }`}
+                >
+                  {getMappingCompletionPercent()}% Complete
+                </Badge>
+                {isPerfectMapping() && (
+                  <div className="flex items-center space-x-1 text-green-600 dark:text-green-400">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">Perfect!</span>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
