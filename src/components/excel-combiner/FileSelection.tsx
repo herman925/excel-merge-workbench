@@ -93,12 +93,34 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
     onFilesChange(selectedFiles.filter(f => f.id !== fileId));
   };
 
-  const reloadFiles = () => {
-    onFilesChange([]);
-    // Clear the file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  const reloadFiles = async () => {
+    if (selectedFiles.length === 0) return;
+    
+    setIsLoading(true);
+    const reloadedFiles: ExcelFile[] = [];
+    
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const existingFile = selectedFiles[i];
+      setLoadingFile(existingFile.name);
+      
+      try {
+        const worksheets = await parseExcelFile(existingFile.file);
+        const validWorksheets = worksheets.filter(ws => ws && ws.trim() !== '');
+        
+        reloadedFiles.push({
+          ...existingFile,
+          worksheets: validWorksheets.length > 0 ? validWorksheets : ['Sheet1']
+        });
+      } catch (error) {
+        console.error(`Failed to reload ${existingFile.name}:`, error);
+        // Keep existing data if reload fails
+        reloadedFiles.push(existingFile);
+      }
     }
+    
+    onFilesChange(reloadedFiles);
+    setIsLoading(false);
+    setLoadingFile('');
   };
 
   const canProceed = selectedFiles.length >= 2;
