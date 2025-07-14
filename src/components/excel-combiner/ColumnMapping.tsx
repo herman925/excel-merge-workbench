@@ -6,9 +6,10 @@ import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { ArrowLeft, Wand2, Plus, X, Link, AlertTriangle } from 'lucide-react';
-import { WorksheetData, ColumnMapping as ColumnMappingType } from '../ExcelCombiner';
+import { WorksheetData, ColumnMapping as ColumnMappingType, ExcelFile } from '../ExcelCombiner';
 
 interface ColumnMappingProps {
+  selectedFiles: ExcelFile[];
   selectedWorksheets: WorksheetData[];
   columnMappings: ColumnMappingType[];
   onMappingsChange: (mappings: ColumnMappingType[]) => void;
@@ -17,6 +18,7 @@ interface ColumnMappingProps {
 }
 
 export function ColumnMapping({
+  selectedFiles,
   selectedWorksheets,
   columnMappings,
   onMappingsChange,
@@ -88,7 +90,8 @@ export function ColumnMapping({
   };
 
   const getFileName = (fileId: string) => {
-    return fileId.replace('file-', 'File ');
+    const file = selectedFiles.find(f => f.id === fileId);
+    return file ? file.name : fileId.replace('file-', 'File ');
   };
 
   const getMappedColumnsCount = () => {

@@ -161,6 +161,7 @@ export function ExcelCombiner() {
           
           {currentStep === 'column-mapping' && (
             <ColumnMapping
+              selectedFiles={selectedFiles}
               selectedWorksheets={selectedWorksheets}
               columnMappings={columnMappings}
               onMappingsChange={setColumnMappings}
