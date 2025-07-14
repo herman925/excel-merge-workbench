@@ -78,6 +78,15 @@ export function WorksheetSelection({
     
     if (!file) return;
     
+    // Handle "Not Selected" option
+    if (worksheetName === 'NOT_SELECTED') {
+      if (existing) {
+        // Remove from selected worksheets
+        onWorksheetsChange(selectedWorksheets.filter(w => w.fileId !== fileId));
+      }
+      return;
+    }
+    
     try {
       const columns = await parseWorksheetColumns(file.file, worksheetName, 1);
       
@@ -140,7 +149,10 @@ export function WorksheetSelection({
     setIsApplyingGlobal(true);
     
     const promises = selectedFiles.map(async (file) => {
-      if (!file.worksheets.includes(globalWorksheet)) return null;
+      if (!file.worksheets.includes(globalWorksheet)) {
+        // For files that don't have the global worksheet, set to "Not Selected"
+        return null;
+      }
       
       try {
         const columns = await parseWorksheetColumns(file.file, globalWorksheet, globalHeaderRow);
@@ -165,22 +177,26 @@ export function WorksheetSelection({
     const results = await Promise.all(promises);
     const validResults = results.filter(Boolean) as WorksheetData[];
     
-    if (validResults.length > 0) {
-      // Merge with existing selections instead of replacing
-      const updatedWorksheets = [...selectedWorksheets];
-      
-      validResults.forEach(newWorksheet => {
-        const existingIndex = updatedWorksheets.findIndex(w => w.fileId === newWorksheet.fileId);
-        if (existingIndex >= 0) {
-          updatedWorksheets[existingIndex] = newWorksheet;
-        } else {
-          updatedWorksheets.push(newWorksheet);
-        }
-      });
-      
-      onWorksheetsChange(updatedWorksheets);
-    }
+    // Remove selections for files that don't have the global worksheet
+    const filesWithGlobalWorksheet = selectedFiles
+      .filter(file => file.worksheets.includes(globalWorksheet))
+      .map(file => file.id);
     
+    const updatedWorksheets = selectedWorksheets.filter(w => 
+      !filesWithGlobalWorksheet.includes(w.fileId)
+    );
+    
+    // Add the new valid results
+    validResults.forEach(newWorksheet => {
+      const existingIndex = updatedWorksheets.findIndex(w => w.fileId === newWorksheet.fileId);
+      if (existingIndex >= 0) {
+        updatedWorksheets[existingIndex] = newWorksheet;
+      } else {
+        updatedWorksheets.push(newWorksheet);
+      }
+    });
+    
+    onWorksheetsChange(updatedWorksheets);
     setIsApplyingGlobal(false);
   };
 
@@ -204,7 +220,7 @@ export function WorksheetSelection({
     return selectedWorksheets.find(w => w.fileId === fileId);
   };
 
-  const canProceed = selectedWorksheets.length === selectedFiles.length;
+  const canProceed = selectedWorksheets.length > 0; // At least one worksheet must be selected
   const availableGlobalWorksheets = getAvailableWorksheets();
 
   return (
@@ -321,13 +337,16 @@ export function WorksheetSelection({
                 <CardContent className="pt-0">
                   <div className="space-y-3">
                     <Select
-                      value={selectedWorksheet?.worksheetName || ''}
+                      value={selectedWorksheet?.worksheetName || 'NOT_SELECTED'}
                       onValueChange={(value) => handleWorksheetSelect(file.id, value)}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select worksheet..." />
                       </SelectTrigger>
                       <SelectContent className="bg-white z-50">
+                        <SelectItem value="NOT_SELECTED">
+                          <span className="text-muted-foreground italic">Not Selected</span>
+                        </SelectItem>
                         {file.worksheets
                           .filter(worksheet => worksheet && typeof worksheet === 'string' && worksheet.trim().length > 0)
                           .map((worksheet) => (
@@ -379,11 +398,11 @@ export function WorksheetSelection({
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="h-5 w-5 text-excel-accent-green" />
                   <span className="font-medium">
-                    {selectedWorksheets.length} of {selectedFiles.length} worksheets selected
+                    {selectedWorksheets.length} of {selectedFiles.length} files selected
                   </span>
                 </div>
                 <Badge variant={canProceed ? "default" : "secondary"}>
-                  {canProceed ? 'Ready to proceed' : 'Selection incomplete'}
+                  {canProceed ? 'Ready to proceed' : 'At least one file must be selected'}
                 </Badge>
               </div>
               
