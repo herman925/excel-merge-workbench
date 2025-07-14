@@ -218,21 +218,23 @@ export function ColumnMapping({
                               {getFileName(worksheet.fileId)}
                             </Label>
                             <Select
-                              value={currentMapping?.column || ''}
+                              value={currentMapping?.column || '__none__'}
                               onValueChange={(value) => 
-                                updateMappingColumn(mappingIndex, worksheet.fileId, value)
+                                updateMappingColumn(mappingIndex, worksheet.fileId, value === '__none__' ? '' : value)
                               }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select column..." />
                               </SelectTrigger>
                               <SelectContent className="bg-white z-50">
-                                <SelectItem value="">No mapping</SelectItem>
-                                {getAvailableColumns(worksheet.fileId).map((column) => (
-                                  <SelectItem key={column} value={column}>
-                                    {column}
-                                  </SelectItem>
-                                ))}
+                                <SelectItem value="__none__">No mapping</SelectItem>
+                                {getAvailableColumns(worksheet.fileId)
+                                  .filter(column => column && typeof column === 'string' && column.trim().length > 0)
+                                  .map((column) => (
+                                    <SelectItem key={column} value={column}>
+                                      {column}
+                                    </SelectItem>
+                                  ))}
                               </SelectContent>
                             </Select>
                           </div>

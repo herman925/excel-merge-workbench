@@ -225,7 +225,7 @@ export function WorksheetSelection({
                     </SelectTrigger>
                       <SelectContent className="bg-white z-50">
                         {availableGlobalWorksheets
-                          .filter(worksheet => worksheet && worksheet.trim() !== '')
+                          .filter(worksheet => worksheet && typeof worksheet === 'string' && worksheet.trim().length > 0)
                           .map((worksheet) => (
                             <SelectItem key={worksheet} value={worksheet}>
                               {worksheet}
@@ -314,7 +314,7 @@ export function WorksheetSelection({
                       </SelectTrigger>
                       <SelectContent className="bg-white z-50">
                         {file.worksheets
-                          .filter(worksheet => worksheet && worksheet.trim() !== '')
+                          .filter(worksheet => worksheet && typeof worksheet === 'string' && worksheet.trim().length > 0)
                           .map((worksheet) => (
                             <SelectItem key={worksheet} value={worksheet}>
                               {worksheet}
