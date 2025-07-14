@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileSelection } from './excel-combiner/FileSelection';
 import { WorksheetSelection } from './excel-combiner/WorksheetSelection';
+import { ColumnPreview } from './excel-combiner/ColumnPreview';
 import { ColumnMapping } from './excel-combiner/ColumnMapping';
 import { Results } from './excel-combiner/Results';
 import { Card } from './ui/card';
@@ -26,7 +27,7 @@ export interface ColumnMapping {
   mappings: { fileId: string; column: string }[];
 }
 
-type Step = 'file-selection' | 'worksheet-selection' | 'column-mapping' | 'results';
+type Step = 'file-selection' | 'worksheet-selection' | 'column-preview' | 'column-mapping' | 'results';
 
 export function ExcelCombiner() {
   const [currentStep, setCurrentStep] = useState<Step>('file-selection');
@@ -38,6 +39,7 @@ export function ExcelCombiner() {
   const steps = [
     { id: 'file-selection', title: 'Select Files', icon: FileSpreadsheet },
     { id: 'worksheet-selection', title: 'Choose Worksheets', icon: FileSpreadsheet },
+    { id: 'column-preview', title: 'Preview Columns', icon: FileSpreadsheet },
     { id: 'column-mapping', title: 'Map Columns', icon: FileSpreadsheet },
     { id: 'results', title: 'Results', icon: FileSpreadsheet },
   ];
@@ -139,6 +141,16 @@ export function ExcelCombiner() {
           {currentStep === 'worksheet-selection' && (
             <WorksheetSelection
               selectedFiles={selectedFiles}
+              selectedWorksheets={selectedWorksheets}
+              onWorksheetsChange={setSelectedWorksheets}
+              onNext={handleNext}
+              onBack={handleBack}
+            />
+          )}
+          
+          
+          {currentStep === 'column-preview' && (
+            <ColumnPreview
               selectedWorksheets={selectedWorksheets}
               onWorksheetsChange={setSelectedWorksheets}
               onNext={handleNext}
