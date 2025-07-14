@@ -218,17 +218,18 @@ export function ExcelCombiner() {
           )}
           
           {currentStep === 'results' && (
-            <Results
-              results={results}
-              onBack={handleBack}
-              onStartOver={() => {
-                setCurrentStep('file-selection');
-                setSelectedFiles([]);
-                setSelectedWorksheets([]);
-                setColumnMappings([]);
-                setResults(null);
-              }}
-            />
+          <Results 
+            results={results} 
+            onBack={handleBack} 
+            onStartOver={() => {
+              setCurrentStep('file-selection');
+              setSelectedFiles([]);
+              setSelectedWorksheets([]);
+              setColumnMappings([]);
+              setResults(null);
+            }}
+            worksheets={selectedWorksheets}
+          />
           )}
         </Card>
       </div>

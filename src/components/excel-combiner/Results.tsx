@@ -11,9 +11,17 @@ interface ResultsProps {
   results: ProcessingResults | null;
   onBack: () => void;
   onStartOver: () => void;
+  worksheets: WorksheetData[];
 }
 
-export function Results({ results, onBack, onStartOver }: ResultsProps) {
+interface WorksheetData {
+  fileId: string;
+  worksheetName: string;
+  headerRow: number;
+  columns: string[];
+}
+
+export function Results({ results, onBack, onStartOver, worksheets }: ResultsProps) {
   if (!results) {
     return (
       <div className="p-8">
@@ -26,8 +34,31 @@ export function Results({ results, onBack, onStartOver }: ResultsProps) {
   }
 
   const handleDownload = () => {
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-    const filename = `Combined_Data_${timestamp}.csv`;
+    // Generate yyyymmdd format
+    const today = new Date();
+    const yyyymmdd = today.getFullYear().toString() + 
+                    (today.getMonth() + 1).toString().padStart(2, '0') + 
+                    today.getDate().toString().padStart(2, '0');
+    
+    // Determine most frequent worksheet name
+    const worksheetNames = worksheets.map(w => w.worksheetName);
+    const nameCounts = worksheetNames.reduce((acc, name) => {
+      acc[name] = (acc[name] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    // Find the name with highest frequency, or first one if tied
+    let mostFrequentName = worksheetNames[0]; // fallback to first
+    let maxCount = 0;
+    
+    for (const [name, count] of Object.entries(nameCounts)) {
+      if (count > maxCount) {
+        maxCount = count;
+        mostFrequentName = name;
+      }
+    }
+    
+    const filename = `${yyyymmdd}_Combined_${mostFrequentName}.csv`;
     
     const blob = ExcelProcessor.generateCSVWithBOM(results.combinedData);
     ExcelProcessor.downloadFile(blob, filename);
