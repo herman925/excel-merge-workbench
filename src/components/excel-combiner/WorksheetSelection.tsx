@@ -155,6 +155,28 @@ export function WorksheetSelection({
     );
   };
 
+  const applyGlobalKeyColumn = (globalKeyColumn: string) => {
+    if (!globalKeyColumn || globalKeyColumn === '__none__') {
+      // Clear all key columns
+      onWorksheetsChange(
+        selectedWorksheets.map(w => ({ ...w, keyColumn: undefined }))
+      );
+      onKeyColumnChange('');
+      return;
+    }
+
+    // Apply global key column to all worksheets that have this column
+    const updatedWorksheets = selectedWorksheets.map(worksheet => {
+      if (worksheet.columns.includes(globalKeyColumn)) {
+        return { ...worksheet, keyColumn: globalKeyColumn };
+      }
+      return worksheet; // Keep existing keyColumn for worksheets that don't have the global column
+    });
+
+    onWorksheetsChange(updatedWorksheets);
+    onKeyColumnChange(globalKeyColumn);
+  };
+
   const applyGlobalSettings = async () => {
     if (!globalWorksheet) return;
     
@@ -244,9 +266,13 @@ export function WorksheetSelection({
     );
   };
 
-  const canProceed = selectedWorksheets.length > 0;
+  const canProceed = selectedWorksheets.length > 0 && selectedWorksheets.every(w => w.keyColumn);
   const availableGlobalWorksheets = getAvailableWorksheets();
   const commonColumns = getCommonColumns();
+
+  // Check how many worksheets are missing key columns
+  const worksheetsWithoutKeys = selectedWorksheets.filter(w => !w.keyColumn);
+  const allHaveKeyColumns = worksheetsWithoutKeys.length === 0;
 
   return (
     <div className="p-8">
@@ -343,16 +369,16 @@ export function WorksheetSelection({
                 </div>
               </div>
               
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Key Column</Label>
-                  <Select value={keyColumn || '__none__'} onValueChange={(value) => onKeyColumnChange(value === '__none__' ? '' : value)}>
+                  <Select value={keyColumn || '__none__'} onValueChange={applyGlobalKeyColumn}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select key column..." />
                     </SelectTrigger>
                     <SelectContent className="bg-white z-50">
                       <SelectItem value="__none__">
-                        <span className="text-muted-foreground italic">Use row position (not recommended)</span>
+                        <span className="text-muted-foreground italic">Clear all key columns</span>
                       </SelectItem>
                       {commonColumns.map((column) => (
                         <SelectItem key={column} value={column}>
@@ -363,16 +389,37 @@ export function WorksheetSelection({
                   </Select>
                 </div>
                 
-                <div className="flex items-end">
-                  <div className="text-sm text-blue-700 dark:text-blue-300">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Apply To</Label>
+                  <div className="text-sm text-blue-700 dark:text-blue-300 p-2 bg-blue-100 dark:bg-blue-900/40 rounded">
                     {keyColumn ? (
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span>Rows will be matched by "{keyColumn}" values</span>
+                      <div>
+                        <div className="font-medium mb-1">"{keyColumn}" will be applied to:</div>
+                        <div className="text-xs">
+                          {selectedWorksheets
+                            .filter(w => w.columns.includes(keyColumn))
+                            .map(w => selectedFiles.find(f => f.id === w.fileId)?.name)
+                            .join(', ') || 'No matching files'}
+                        </div>
                       </div>
                     ) : (
-                      <div className="text-orange-600 dark:text-orange-400">
-                        Rows will be combined by position (may cause misalignment)
+                      'Select a key column to see which files it applies to'
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-end">
+                  <div className="text-sm">
+                    {keyColumn && (
+                      <div className="space-y-1">
+                        <div className="text-green-600 dark:text-green-400 font-medium">
+                          ✓ Applied to {selectedWorksheets.filter(w => w.columns.includes(keyColumn)).length} files
+                        </div>
+                        {selectedWorksheets.filter(w => !w.columns.includes(keyColumn)).length > 0 && (
+                          <div className="text-orange-600 dark:text-orange-400 text-xs">
+                            {selectedWorksheets.filter(w => !w.columns.includes(keyColumn)).length} files need manual setup
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -492,12 +539,27 @@ export function WorksheetSelection({
         </div>
 
         {/* Key Column Status Summary */}
-        {selectedWorksheets.length > 1 && (
-          <Card className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
+        {selectedWorksheets.length > 0 && (
+          <Card className={`transition-all duration-300 ${
+            allHaveKeyColumns 
+              ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' 
+              : 'bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800'
+          }`}>
             <CardContent className="p-4">
               <div className="flex items-center space-x-3 mb-3">
-                <Settings className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                <h3 className="font-semibold text-blue-900 dark:text-blue-100">Key Column Status</h3>
+                {allHaveKeyColumns ? (
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                ) : (
+                  <Settings className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                )}
+                <h3 className={`font-semibold ${
+                  allHaveKeyColumns 
+                    ? 'text-green-900 dark:text-green-100' 
+                    : 'text-orange-900 dark:text-orange-100'
+                }`}>
+                  Key Column Configuration
+                  {allHaveKeyColumns && <span className="ml-2 text-sm">✓ Complete</span>}
+                </h3>
               </div>
               
               <div className="space-y-2">
@@ -505,24 +567,28 @@ export function WorksheetSelection({
                   const file = selectedFiles.find(f => f.id === worksheet.fileId);
                   return (
                     <div key={worksheet.fileId} className="flex items-center justify-between text-sm">
-                      <span className="text-blue-800 dark:text-blue-200">
+                      <span className={allHaveKeyColumns ? "text-green-800 dark:text-green-200" : "text-orange-800 dark:text-orange-200"}>
                         {file?.name || 'Unknown file'}
                       </span>
                       <Badge 
-                        variant={worksheet.keyColumn ? "default" : "secondary"}
-                        className={worksheet.keyColumn ? "bg-green-600 text-white" : ""}
+                        variant={worksheet.keyColumn ? "default" : "destructive"}
+                        className={worksheet.keyColumn ? "bg-green-600 text-white" : "bg-red-600 text-white"}
                       >
-                        {worksheet.keyColumn || "No key column"}
+                        {worksheet.keyColumn || "MISSING KEY COLUMN"}
                       </Badge>
                     </div>
                   );
                 })}
               </div>
               
-              <p className="text-xs text-blue-700 dark:text-blue-300 mt-3">
-                {selectedWorksheets.every(w => w.keyColumn) 
+              <p className={`text-xs mt-3 ${
+                allHaveKeyColumns 
+                  ? 'text-green-700 dark:text-green-300' 
+                  : 'text-orange-700 dark:text-orange-300'
+              }`}>
+                {allHaveKeyColumns 
                   ? "✓ All worksheets have key columns - data will be matched accurately"
-                  : "⚠ Some worksheets missing key columns - may cause data misalignment"
+                  : `⚠ ${worksheetsWithoutKeys.length} worksheet(s) missing key columns - please assign them manually below`
                 }
               </p>
             </CardContent>
@@ -540,8 +606,10 @@ export function WorksheetSelection({
                     {selectedWorksheets.length} of {selectedFiles.length} files selected
                   </span>
                 </div>
-                <Badge variant={canProceed ? "default" : "secondary"}>
-                  {canProceed ? 'Ready to proceed' : 'At least one file must be selected'}
+                <Badge variant={canProceed ? "default" : "destructive"}>
+                  {canProceed ? 'Ready to proceed' : 
+                   selectedWorksheets.length === 0 ? 'Select at least one file' :
+                   'All files must have key columns'}
                 </Badge>
               </div>
               
