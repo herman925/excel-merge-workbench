@@ -2,170 +2,268 @@ import React from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { 
-  ArrowLeft, 
-  Download, 
-  CheckCircle, 
-  RotateCcw, 
-  FileText,
-  BarChart3,
-  Clock,
-  Users
-} from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { Download, ArrowLeft, CheckCircle, RotateCcw, FileText, AlertTriangle, TrendingUp, Eye } from 'lucide-react';
+import { ProcessingResults } from '../../lib/excel-processor';
+import { ExcelProcessor } from '../../lib/excel-processor';
 
 interface ResultsProps {
-  results: any;
+  results: ProcessingResults | null;
   onBack: () => void;
   onStartOver: () => void;
 }
 
 export function Results({ results, onBack, onStartOver }: ResultsProps) {
-  // Mock results data for demonstration
-  const mockResults = {
-    success: true,
-    fileName: 'combined_worksheets.csv',
-    totalRows: 12543,
-    totalColumns: 8,
-    filesProcessed: 3,
-    processingTime: '2.3s',
-    unmappedColumns: 2,
-    duplicateRows: 45
-  };
+  if (!results) {
+    return (
+      <div className="p-8">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl text-excel-primary">No Results Available</CardTitle>
+          <CardDescription>Please process some files first.</CardDescription>
+        </CardHeader>
+      </div>
+    );
+  }
 
   const handleDownload = () => {
-    // Mock download functionality
-    const blob = new Blob(['Mock CSV content'], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = mockResults.fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    const filename = `Combined_Data_${timestamp}.csv`;
+    
+    const blob = ExcelProcessor.generateCSVWithBOM(results.combinedData);
+    ExcelProcessor.downloadFile(blob, filename);
   };
 
   return (
     <div className="p-8">
       <CardHeader className="text-center">
-        <div className="mx-auto w-16 h-16 bg-excel-accent-green/10 rounded-full flex items-center justify-center mb-4">
-          <CheckCircle className="h-8 w-8 text-excel-accent-green" />
-        </div>
-        <CardTitle className="text-2xl text-excel-primary">Combination Complete!</CardTitle>
+        <CardTitle className="text-2xl text-excel-primary">Processing Complete!</CardTitle>
         <CardDescription className="text-lg">
           Your Excel worksheets have been successfully combined
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {/* Success Summary */}
-        <Card className="bg-excel-accent-green/5 border-excel-accent-green/20">
+        {/* Success Message */}
+        <Card className="bg-gradient-to-r from-excel-accent-green/10 to-excel-accent-green/5 border-excel-accent-green/20">
           <CardContent className="p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <FileText className="h-6 w-6 text-excel-accent-green" />
-              <div>
-                <h3 className="font-semibold text-excel-accent-green text-lg">
-                  {mockResults.fileName}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Ready for download • UTF-8 encoded
+            <div className="flex items-center space-x-4">
+              <div className="bg-excel-accent-green rounded-full p-3">
+                <CheckCircle className="h-8 w-8 text-white" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-excel-accent-green mb-2">
+                  Files Combined Successfully!
+                </h2>
+                <p className="text-lg text-muted-foreground">
+                  {results.totalRowsProcessed} rows processed from {results.successfulFiles} files. Your data is ready for download.
                 </p>
               </div>
-            </div>
-            
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary" className="bg-excel-accent-green/10 text-excel-accent-green">
-                {mockResults.totalRows.toLocaleString()} rows
-              </Badge>
-              <Badge variant="secondary" className="bg-excel-accent-green/10 text-excel-accent-green">
-                {mockResults.totalColumns} columns
-              </Badge>
-              <Badge variant="secondary" className="bg-excel-accent-green/10 text-excel-accent-green">
-                {mockResults.filesProcessed} files processed
-              </Badge>
             </div>
           </CardContent>
         </Card>
 
-        {/* Processing Statistics */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* File Information */}
+        <div className="grid md:grid-cols-2 gap-6">
           <Card>
-            <CardContent className="p-4 text-center">
-              <BarChart3 className="h-8 w-8 text-excel-primary mx-auto mb-2" />
-              <div className="text-2xl font-bold text-excel-primary">
-                {mockResults.totalRows.toLocaleString()}
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <FileText className="h-5 w-5 text-excel-primary" />
+                <span>Output File</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Format:</span>
+                <span className="font-medium">CSV (UTF-8 with BOM)</span>
               </div>
-              <p className="text-sm text-muted-foreground">Total Rows</p>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Columns:</span>
+                <Badge variant="secondary">{results.combinedData[0]?.length || 0}</Badge>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Rows:</span>
+                <Badge variant="secondary">{(results.combinedData.length - 1).toLocaleString()}</Badge>
+              </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-4 text-center">
-              <Users className="h-8 w-8 text-excel-secondary mx-auto mb-2" />
-              <div className="text-2xl font-bold text-excel-secondary">
-                {mockResults.filesProcessed}
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <TrendingUp className="h-5 w-5 text-excel-secondary" />
+                <span>Processing Stats</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Files Processed:</span>
+                <span className="font-medium">{results.successfulFiles}</span>
               </div>
-              <p className="text-sm text-muted-foreground">Files Combined</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 text-center">
-              <Clock className="h-8 w-8 text-excel-accent-green mx-auto mb-2" />
-              <div className="text-2xl font-bold text-excel-accent-green">
-                {mockResults.processingTime}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Rows Processed:</span>
+                <span className="font-medium">{results.totalRowsProcessed.toLocaleString()}</span>
               </div>
-              <p className="text-sm text-muted-foreground">Processing Time</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 text-center">
-              <FileText className="h-8 w-8 text-excel-accent-pink mx-auto mb-2" />
-              <div className="text-2xl font-bold text-excel-accent-pink">
-                {mockResults.totalColumns}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Duplicates Removed:</span>
+                <Badge variant="secondary">{results.duplicatesRemoved}</Badge>
               </div>
-              <p className="text-sm text-muted-foreground">Output Columns</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Warnings/Issues */}
-        {(mockResults.unmappedColumns > 0 || mockResults.duplicateRows > 0) && (
-          <Card className="bg-amber-50 border-amber-200">
-            <CardContent className="p-4">
-              <h3 className="font-medium text-amber-800 mb-2">Processing Notes</h3>
-              <ul className="text-sm text-amber-700 space-y-1">
-                {mockResults.unmappedColumns > 0 && (
-                  <li>• {mockResults.unmappedColumns} columns were not mapped and excluded from output</li>
-                )}
-                {mockResults.duplicateRows > 0 && (
-                  <li>• {mockResults.duplicateRows} duplicate rows were detected and merged</li>
-                )}
-              </ul>
+        {/* Data Preview */}
+        {results.previewData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Eye className="h-5 w-5 text-excel-primary" />
+                <span>Data Preview (First 10 Rows)</span>
+              </CardTitle>
+              <CardDescription>
+                Preview of your combined data structure
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {results.previewData[0]?.map((header, index) => (
+                        <TableHead key={index} className="font-semibold text-excel-primary">
+                          {header}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {results.previewData.slice(1, 11).map((row, rowIndex) => (
+                      <TableRow key={rowIndex}>
+                        {row.map((cell, cellIndex) => (
+                          <TableCell key={cellIndex} className="max-w-[200px] truncate">
+                            {cell || '-'}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {results.combinedData.length > 11 && (
+                <p className="text-sm text-muted-foreground mt-3 text-center">
+                  ... and {(results.combinedData.length - 11).toLocaleString()} more rows
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
 
-        {/* Download Section */}
-        <Card className="bg-gradient-primary/5 border-excel-primary/20">
+        {/* Download Button */}
+        <Card className="bg-gradient-primary/10 border-excel-primary/20">
           <CardContent className="p-6 text-center">
-            <h3 className="text-lg font-semibold text-excel-primary mb-4">
-              Download Your Combined Data
-            </h3>
-            <Button 
+            <h3 className="text-lg font-semibold mb-4">Ready to Download</h3>
+            <Button
               onClick={handleDownload}
-              className="bg-gradient-primary hover:opacity-90 text-lg px-8 py-3"
               size="lg"
+              className="bg-gradient-primary hover:opacity-90 px-8 py-3"
             >
               <Download className="mr-2 h-5 w-5" />
-              Download CSV File
+              Download Combined CSV
             </Button>
-            <p className="text-sm text-muted-foreground mt-2">
-              File will be saved in UTF-8 format for maximum compatibility
+            <p className="text-sm text-muted-foreground mt-3">
+              UTF-8 CSV format with proper Unicode support
             </p>
           </CardContent>
         </Card>
+
+        {/* Warnings/Issues */}
+        {(results.unmappedColumns.length > 0 || results.duplicateRows.length > 0) && (
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Unmapped Columns Report */}
+            {results.unmappedColumns.length > 0 && (
+              <Card className="border-orange-200 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-orange-700 dark:text-orange-400">
+                    <AlertTriangle className="h-5 w-5" />
+                    <span>Unmapped Columns Report</span>
+                  </CardTitle>
+                  <CardDescription className="text-orange-600 dark:text-orange-300">
+                    {results.unmappedColumns.length} columns were not mapped and excluded from output
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {results.unmappedColumns.slice(0, 5).map((col, index) => (
+                    <div key={index} className="p-3 bg-white dark:bg-orange-900/30 rounded-lg border border-orange-200 dark:border-orange-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-orange-800 dark:text-orange-200">{col.columnName}</span>
+                        <Badge variant="outline" className="text-orange-700 border-orange-300">
+                          {col.dataType}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-orange-600 dark:text-orange-300">
+                        From: {col.fileName} → {col.worksheetName}
+                      </p>
+                      {col.sampleValues.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs text-orange-500 dark:text-orange-400 mb-1">Sample values:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {col.sampleValues.slice(0, 3).map((value, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs bg-orange-100 text-orange-700">
+                                {value}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {results.unmappedColumns.length > 5 && (
+                    <p className="text-sm text-orange-600 text-center">
+                      ... and {results.unmappedColumns.length - 5} more unmapped columns
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Duplicate Rows Report */}
+            {results.duplicateRows.length > 0 && (
+              <Card className="border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-blue-700 dark:text-blue-400">
+                    <Eye className="h-5 w-5" />
+                    <span>Duplicate Rows Report</span>
+                  </CardTitle>
+                  <CardDescription className="text-blue-600 dark:text-blue-300">
+                    {results.duplicateRows.length} duplicate rows were detected and merged
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {results.duplicateRows.slice(0, 5).map((dup, index) => (
+                    <div key={index} className="p-3 bg-white dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-blue-800 dark:text-blue-200">Row {dup.rowIndex}</span>
+                        <Badge variant="outline" className="text-blue-700 border-blue-300">
+                          {dup.duplicateCount} duplicates
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-blue-600 dark:text-blue-300 mb-2">
+                        <span className="font-medium">Data:</span> {dup.originalRow.slice(0, 3).join(' | ')}{dup.originalRow.length > 3 ? '...' : ''}
+                      </div>
+                      <div className="text-xs text-blue-500 dark:text-blue-400">
+                        Found in: {dup.sourceFiles.join(', ')}
+                      </div>
+                    </div>
+                  ))}
+                  {results.duplicateRows.length > 5 && (
+                    <p className="text-sm text-blue-600 text-center">
+                      ... and {results.duplicateRows.length - 5} more duplicate groups
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
 
         {/* Navigation */}
         <div className="flex justify-between pt-4">

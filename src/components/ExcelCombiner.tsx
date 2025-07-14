@@ -7,6 +7,8 @@ import { Results } from './excel-combiner/Results';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { ChevronRight, FileSpreadsheet } from 'lucide-react';
+import { ExcelProcessor, ProcessingResults } from '../lib/excel-processor';
+import { useToast } from '../hooks/use-toast';
 
 export interface ExcelFile {
   id: string;
@@ -34,7 +36,9 @@ export function ExcelCombiner() {
   const [selectedFiles, setSelectedFiles] = useState<ExcelFile[]>([]);
   const [selectedWorksheets, setSelectedWorksheets] = useState<WorksheetData[]>([]);
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<ProcessingResults | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { toast } = useToast();
 
   const steps = [
     { id: 'file-selection', title: 'Select Files', icon: FileSpreadsheet },
@@ -46,10 +50,52 @@ export function ExcelCombiner() {
 
   const currentStepIndex = steps.findIndex(step => step.id === currentStep);
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const nextIndex = currentStepIndex + 1;
     if (nextIndex < steps.length) {
-      setCurrentStep(steps[nextIndex].id as Step);
+      const nextStep = steps[nextIndex].id as Step;
+      
+      // If moving to results, process the data first
+      if (nextStep === 'results') {
+        await processExcelFiles();
+      } else {
+        setCurrentStep(nextStep);
+      }
+    }
+  };
+
+  const processExcelFiles = async () => {
+    if (selectedFiles.length === 0 || selectedWorksheets.length === 0 || columnMappings.length === 0) {
+      toast({
+        title: "Missing Data",
+        description: "Please ensure all files, worksheets, and column mappings are configured.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    try {
+      const processor = new ExcelProcessor(selectedFiles, selectedWorksheets, columnMappings);
+      const processingResults = await processor.processFiles();
+      
+      setResults(processingResults);
+      setCurrentStep('results');
+      
+      toast({
+        title: "Processing Complete",
+        description: `Successfully combined ${processingResults.totalRowsProcessed} rows from ${processingResults.successfulFiles} files.`,
+      });
+    } catch (error) {
+      console.error('Error processing Excel files:', error);
+      toast({
+        title: "Processing Failed",
+        description: "An error occurred while processing the Excel files. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -167,6 +213,7 @@ export function ExcelCombiner() {
               onMappingsChange={setColumnMappings}
               onNext={handleNext}
               onBack={handleBack}
+              isProcessing={isProcessing}
             />
           )}
           

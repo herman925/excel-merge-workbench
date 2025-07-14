@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { ArrowLeft, Wand2, Plus, X, Link, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Wand2, Plus, X, Link, AlertTriangle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { WorksheetData, ColumnMapping as ColumnMappingType, ExcelFile } from '../ExcelCombiner';
 
 interface ColumnMappingProps {
@@ -15,6 +15,7 @@ interface ColumnMappingProps {
   onMappingsChange: (mappings: ColumnMappingType[]) => void;
   onNext: () => void;
   onBack: () => void;
+  isProcessing?: boolean;
 }
 
 export function ColumnMapping({
@@ -23,7 +24,8 @@ export function ColumnMapping({
   columnMappings,
   onMappingsChange,
   onNext,
-  onBack
+  onBack,
+  isProcessing = false
 }: ColumnMappingProps) {
   const [newColumnName, setNewColumnName] = useState('');
 
@@ -289,18 +291,25 @@ export function ColumnMapping({
         </div>
 
         {/* Navigation */}
-        <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={onBack}>
+        <div className="flex justify-between pt-6">
+          <Button variant="outline" onClick={onBack} disabled={isProcessing}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Worksheets
+            Back to Preview
           </Button>
           
           <Button
             onClick={onNext}
-            disabled={!canProceed}
+            disabled={!canProceed || isProcessing}
             className="bg-gradient-primary hover:opacity-90 px-8"
           >
-            Combine & Save
+            {isProcessing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing Files...
+              </>
+            ) : (
+              'Generate Combined CSV'
+            )}
           </Button>
         </div>
       </CardContent>
