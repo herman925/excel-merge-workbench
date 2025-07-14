@@ -1,4 +1,5 @@
 import React from 'react';
+import * as XLSX from 'xlsx';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -22,25 +23,89 @@ export function WorksheetSelection({
   onBack
 }: WorksheetSelectionProps) {
   
-  const handleWorksheetSelect = (fileId: string, worksheetName: string) => {
+  
+  const parseWorksheetColumns = async (file: File, worksheetName: string): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const worksheet = workbook.Sheets[worksheetName];
+          
+          if (!worksheet) {
+            resolve([]);
+            return;
+          }
+          
+          // Get the range of the worksheet
+          const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+          const columns: string[] = [];
+          
+          // Read the first row (header row) to get column names
+          for (let col = range.s.c; col <= range.e.c; col++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+            const cell = worksheet[cellAddress];
+            if (cell && cell.v) {
+              columns.push(String(cell.v));
+            } else {
+              columns.push(`Column ${String.fromCharCode(65 + col)}`);
+            }
+          }
+          
+          resolve(columns);
+        } catch (error) {
+          console.error('Error parsing worksheet columns:', error);
+          resolve(['Column A', 'Column B', 'Column C']); // Fallback
+        }
+      };
+      
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const handleWorksheetSelect = async (fileId: string, worksheetName: string) => {
     const existing = selectedWorksheets.find(w => w.fileId === fileId);
     const file = selectedFiles.find(f => f.id === fileId);
     
     if (!file) return;
     
-    const newWorksheet: WorksheetData = {
-      fileId,
-      worksheetName,
-      headerRow: 1,
-      columns: ['Column A', 'Column B', 'Column C', 'Column D'] // Mock columns
-    };
+    try {
+      const columns = await parseWorksheetColumns(file.file, worksheetName);
+      
+      const newWorksheet: WorksheetData = {
+        fileId,
+        worksheetName,
+        headerRow: 1,
+        columns: columns
+      };
 
-    if (existing) {
-      onWorksheetsChange(
-        selectedWorksheets.map(w => w.fileId === fileId ? newWorksheet : w)
-      );
-    } else {
-      onWorksheetsChange([...selectedWorksheets, newWorksheet]);
+      if (existing) {
+        onWorksheetsChange(
+          selectedWorksheets.map(w => w.fileId === fileId ? newWorksheet : w)
+        );
+      } else {
+        onWorksheetsChange([...selectedWorksheets, newWorksheet]);
+      }
+    } catch (error) {
+      console.error('Failed to parse worksheet:', error);
+      // Fallback with basic column names
+      const newWorksheet: WorksheetData = {
+        fileId,
+        worksheetName,
+        headerRow: 1,
+        columns: ['Column A', 'Column B', 'Column C'] // Fallback
+      };
+
+      if (existing) {
+        onWorksheetsChange(
+          selectedWorksheets.map(w => w.fileId === fileId ? newWorksheet : w)
+        );
+      } else {
+        onWorksheetsChange([...selectedWorksheets, newWorksheet]);
+      }
     }
   };
 

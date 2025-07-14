@@ -1,8 +1,9 @@
 import React, { useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Upload, X, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { Upload, X, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react';
 import { ExcelFile } from '../ExcelCombiner';
 
 interface FileSelectionProps {
@@ -14,7 +15,27 @@ interface FileSelectionProps {
 export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSelectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const parseExcelFile = async (file: File): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          resolve(workbook.SheetNames);
+        } catch (error) {
+          console.error('Error parsing Excel file:', error);
+          reject(error);
+        }
+      };
+      
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     
     // Filter Excel files and limit to 5
@@ -22,12 +43,30 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
       file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
     ).slice(0, 5 - selectedFiles.length);
 
-    const newExcelFiles: ExcelFile[] = excelFiles.map((file, index) => ({
-      id: `file-${selectedFiles.length + index + 1}`,
-      name: file.name,
-      file: file,
-      worksheets: ['Sheet1', 'Sheet2', 'Data'] // Mock worksheets - in real app, these would be parsed
-    }));
+    // Parse each file to get real worksheet names
+    const newExcelFiles: ExcelFile[] = [];
+    
+    for (let i = 0; i < excelFiles.length; i++) {
+      const file = excelFiles[i];
+      try {
+        const worksheets = await parseExcelFile(file);
+        newExcelFiles.push({
+          id: `file-${selectedFiles.length + i + 1}`,
+          name: file.name,
+          file: file,
+          worksheets: worksheets
+        });
+      } catch (error) {
+        console.error(`Failed to parse ${file.name}:`, error);
+        // Fallback to default sheet names if parsing fails
+        newExcelFiles.push({
+          id: `file-${selectedFiles.length + i + 1}`,
+          name: file.name,
+          file: file,
+          worksheets: ['Sheet1'] // Fallback
+        });
+      }
+    }
 
     onFilesChange([...selectedFiles, ...newExcelFiles]);
     
