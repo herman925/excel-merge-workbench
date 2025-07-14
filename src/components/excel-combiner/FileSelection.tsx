@@ -90,7 +90,11 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
   };
 
   const removeFile = (fileId: string) => {
-    onFilesChange(selectedFiles.filter(f => f.id !== fileId));
+    console.log('Removing file with ID:', fileId);
+    console.log('Current files:', selectedFiles.map(f => ({ id: f.id, name: f.name })));
+    const filteredFiles = selectedFiles.filter(f => f.id !== fileId);
+    console.log('Filtered files:', filteredFiles.map(f => ({ id: f.id, name: f.name })));
+    onFilesChange(filteredFiles);
   };
 
   const reloadFiles = async () => {
