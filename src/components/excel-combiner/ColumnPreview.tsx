@@ -1,13 +1,15 @@
 import React from 'react';
+import * as XLSX from 'xlsx';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { ArrowLeft, Eye, FileSpreadsheet, Settings } from 'lucide-react';
-import { WorksheetData } from '../ExcelCombiner';
+import { ArrowLeft, Eye, FileSpreadsheet, Settings, Loader2 } from 'lucide-react';
+import { WorksheetData, ExcelFile } from '../ExcelCombiner';
 
 interface ColumnPreviewProps {
+  selectedFiles: ExcelFile[];
   selectedWorksheets: WorksheetData[];
   onWorksheetsChange: (worksheets: WorksheetData[]) => void;
   onNext: () => void;
@@ -15,18 +17,78 @@ interface ColumnPreviewProps {
 }
 
 export function ColumnPreview({
+  selectedFiles,
   selectedWorksheets,
   onWorksheetsChange,
   onNext,
   onBack
 }: ColumnPreviewProps) {
+  const [isUpdating, setIsUpdating] = React.useState<string>('');
 
-  const updateHeaderRow = (fileId: string, headerRow: number) => {
-    onWorksheetsChange(
-      selectedWorksheets.map(ws => 
-        ws.fileId === fileId ? { ...ws, headerRow } : ws
-      )
-    );
+  const parseWorksheetColumns = async (file: File, worksheetName: string, headerRow: number = 1): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const worksheet = workbook.Sheets[worksheetName];
+          
+          if (!worksheet) {
+            resolve([]);
+            return;
+          }
+          
+          // Get the range of the worksheet
+          const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+          const columns: string[] = [];
+          
+          // Read the specified header row to get column names
+          const headerRowIndex = headerRow - 1; // Convert to 0-based index
+          for (let col = range.s.c; col <= range.e.c; col++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: headerRowIndex, c: col });
+            const cell = worksheet[cellAddress];
+            if (cell && cell.v) {
+              columns.push(String(cell.v));
+            } else {
+              columns.push(`Column ${String.fromCharCode(65 + col)}`);
+            }
+          }
+          
+          resolve(columns);
+        } catch (error) {
+          console.error('Error parsing worksheet columns:', error);
+          resolve(['Column A', 'Column B', 'Column C']); // Fallback
+        }
+      };
+      
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const updateHeaderRow = async (fileId: string, headerRow: number) => {
+    const worksheet = selectedWorksheets.find(w => w.fileId === fileId);
+    const file = selectedFiles.find(f => f.id === fileId);
+    
+    if (!worksheet || !file) return;
+    
+    setIsUpdating(fileId);
+    
+    try {
+      const columns = await parseWorksheetColumns(file.file, worksheet.worksheetName, headerRow);
+      
+      onWorksheetsChange(
+        selectedWorksheets.map(w => 
+          w.fileId === fileId ? { ...w, headerRow, columns } : w
+        )
+      );
+    } catch (error) {
+      console.error('Failed to update header row:', error);
+    } finally {
+      setIsUpdating('');
+    }
   };
 
   const getFileName = (fileId: string) => {
@@ -101,15 +163,21 @@ export function ColumnPreview({
                     <Label htmlFor={`header-${worksheet.fileId}`} className="text-sm">
                       Row:
                     </Label>
-                    <Input
-                      id={`header-${worksheet.fileId}`}
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={worksheet.headerRow}
-                      onChange={(e) => updateHeaderRow(worksheet.fileId, parseInt(e.target.value) || 1)}
-                      className="w-20"
-                    />
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        id={`header-${worksheet.fileId}`}
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={worksheet.headerRow}
+                        onChange={(e) => updateHeaderRow(worksheet.fileId, parseInt(e.target.value) || 1)}
+                        className="w-20"
+                        disabled={isUpdating === worksheet.fileId}
+                      />
+                      {isUpdating === worksheet.fileId && (
+                        <Loader2 className="h-4 w-4 animate-spin text-excel-primary" />
+                      )}
+                    </div>
                   </div>
                 </div>
 

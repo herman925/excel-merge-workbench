@@ -14,6 +14,8 @@ interface FileSelectionProps {
 
 export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSelectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [loadingFile, setLoadingFile] = React.useState<string>('');
 
   const parseExcelFile = async (file: File): Promise<string[]> => {
     return new Promise((resolve, reject) => {
@@ -43,18 +45,27 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
       file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
     ).slice(0, 5 - selectedFiles.length);
 
+    if (excelFiles.length === 0) return;
+
+    setIsLoading(true);
+    
     // Parse each file to get real worksheet names
     const newExcelFiles: ExcelFile[] = [];
     
     for (let i = 0; i < excelFiles.length; i++) {
       const file = excelFiles[i];
+      setLoadingFile(file.name);
+      
       try {
         const worksheets = await parseExcelFile(file);
+        // Filter out empty worksheet names
+        const validWorksheets = worksheets.filter(ws => ws && ws.trim() !== '');
+        
         newExcelFiles.push({
           id: `file-${selectedFiles.length + i + 1}`,
           name: file.name,
           file: file,
-          worksheets: worksheets
+          worksheets: validWorksheets.length > 0 ? validWorksheets : ['Sheet1']
         });
       } catch (error) {
         console.error(`Failed to parse ${file.name}:`, error);
@@ -69,6 +80,8 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
     }
 
     onFilesChange([...selectedFiles, ...newExcelFiles]);
+    setIsLoading(false);
+    setLoadingFile('');
     
     // Clear input
     if (fileInputRef.current) {
@@ -99,14 +112,28 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
           <p className="text-muted-foreground mb-4">
             Or click to browse for .xlsx and .xls files
           </p>
-          <Button 
-            onClick={() => fileInputRef.current?.click()}
-            className="bg-gradient-primary hover:opacity-90"
-            disabled={selectedFiles.length >= 5}
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            Browse Files
-          </Button>
+          
+          {isLoading ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-center space-x-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Processing {loadingFile}...</span>
+              </div>
+              <div className="w-64 mx-auto bg-muted rounded-full h-2">
+                <div className="bg-excel-primary h-2 rounded-full animate-pulse w-1/2"></div>
+              </div>
+            </div>
+          ) : (
+            <Button 
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-gradient-primary hover:opacity-90"
+              disabled={selectedFiles.length >= 5}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Browse Files
+            </Button>
+          )}
+          
           <input
             ref={fileInputRef}
             type="file"
@@ -114,6 +141,7 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
             accept=".xlsx,.xls"
             onChange={handleFileSelect}
             className="hidden"
+            disabled={isLoading}
           />
           <p className="text-sm text-muted-foreground mt-2">
             Maximum 5 files • Excel formats only

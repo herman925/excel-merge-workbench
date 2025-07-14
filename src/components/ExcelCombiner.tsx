@@ -151,6 +151,7 @@ export function ExcelCombiner() {
           
           {currentStep === 'column-preview' && (
             <ColumnPreview
+              selectedFiles={selectedFiles}
               selectedWorksheets={selectedWorksheets}
               onWorksheetsChange={setSelectedWorksheets}
               onNext={handleNext}

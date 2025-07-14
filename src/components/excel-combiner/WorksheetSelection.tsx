@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
-import { FileSpreadsheet, ArrowLeft, CheckCircle, Settings, Globe } from 'lucide-react';
+import { FileSpreadsheet, ArrowLeft, CheckCircle, Settings, Globe, Loader2 } from 'lucide-react';
 import { ExcelFile, WorksheetData } from '../ExcelCombiner';
 
 interface WorksheetSelectionProps {
@@ -27,6 +27,7 @@ export function WorksheetSelection({
   
   const [globalWorksheet, setGlobalWorksheet] = React.useState('');
   const [globalHeaderRow, setGlobalHeaderRow] = React.useState(1);
+  const [isApplyingGlobal, setIsApplyingGlobal] = React.useState(false);
   
   const parseWorksheetColumns = async (file: File, worksheetName: string, headerRow: number = 1): Promise<string[]> => {
     return new Promise((resolve, reject) => {
@@ -136,6 +137,8 @@ export function WorksheetSelection({
   const applyGlobalSettings = async () => {
     if (!globalWorksheet) return;
     
+    setIsApplyingGlobal(true);
+    
     const promises = selectedFiles.map(async (file) => {
       if (!file.worksheets.includes(globalWorksheet)) return null;
       
@@ -165,6 +168,8 @@ export function WorksheetSelection({
     if (validResults.length > 0) {
       onWorksheetsChange(validResults);
     }
+    
+    setIsApplyingGlobal(false);
   };
 
   const getAvailableWorksheets = () => {
@@ -244,10 +249,17 @@ export function WorksheetSelection({
                 <div className="flex items-end">
                   <Button
                     onClick={applyGlobalSettings}
-                    disabled={!globalWorksheet}
+                    disabled={!globalWorksheet || isApplyingGlobal}
                     className="w-full bg-excel-secondary hover:bg-excel-secondary/90"
                   >
-                    Apply to All
+                    {isApplyingGlobal ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Applying...
+                      </>
+                    ) : (
+                      'Apply to All'
+                    )}
                   </Button>
                 </div>
               </div>
