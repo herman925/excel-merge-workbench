@@ -64,6 +64,14 @@ export function ColumnMapping({
   const updateMappingColumn = (mappingIndex: number, fileId: string, column: string) => {
     const updatedMappings = columnMappings.map((mapping, index) => {
       if (index === mappingIndex) {
+        if (!column || column.trim().length === 0) {
+          // Remove the mapping entirely when "No mapping" is selected
+          return {
+            ...mapping,
+            mappings: mapping.mappings.filter(m => m.fileId !== fileId)
+          };
+        }
+        
         const existingMapping = mapping.mappings.find(m => m.fileId === fileId);
         
         if (existingMapping) {
