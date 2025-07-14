@@ -61,7 +61,22 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				excel: {
+					primary: 'hsl(var(--excel-primary))',
+					secondary: 'hsl(var(--excel-secondary))',
+					'accent-pink': 'hsl(var(--excel-accent-pink))',
+					'accent-green': 'hsl(var(--excel-accent-green))'
 				}
+			},
+			backgroundImage: {
+				'gradient-primary': 'var(--gradient-primary)',
+				'gradient-secondary': 'var(--gradient-secondary)',
+				'gradient-hero': 'var(--gradient-hero)'
+			},
+			boxShadow: {
+				'primary': 'var(--shadow-primary)',
+				'card': 'var(--shadow-card)'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
