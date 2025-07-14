@@ -105,9 +105,9 @@ export function ColumnMapping({
   };
 
   const getMappedColumnsCount = () => {
-    // Count how many output columns have at least one valid mapping
+    // Count how many output columns have ALL valid mappings (no "No mapping" selections)
     return columnMappings.filter(mapping => 
-      mapping.mappings.some(m => m.column && m.column.trim().length > 0 && m.column !== "No mapping")
+      mapping.mappings.every(m => m.column && m.column.trim().length > 0 && m.column !== "No mapping")
     ).length;
   };
 
