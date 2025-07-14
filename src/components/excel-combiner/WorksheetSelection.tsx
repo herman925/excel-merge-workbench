@@ -166,7 +166,19 @@ export function WorksheetSelection({
     const validResults = results.filter(Boolean) as WorksheetData[];
     
     if (validResults.length > 0) {
-      onWorksheetsChange(validResults);
+      // Merge with existing selections instead of replacing
+      const updatedWorksheets = [...selectedWorksheets];
+      
+      validResults.forEach(newWorksheet => {
+        const existingIndex = updatedWorksheets.findIndex(w => w.fileId === newWorksheet.fileId);
+        if (existingIndex >= 0) {
+          updatedWorksheets[existingIndex] = newWorksheet;
+        } else {
+          updatedWorksheets.push(newWorksheet);
+        }
+      });
+      
+      onWorksheetsChange(updatedWorksheets);
     }
     
     setIsApplyingGlobal(false);
