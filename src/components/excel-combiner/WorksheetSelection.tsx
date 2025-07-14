@@ -179,10 +179,13 @@ export function WorksheetSelection({
       return acc;
     }, {} as Record<string, number>);
     
-    // Return worksheets that appear in all files
+    // Return all unique worksheets with their counts
     return Object.entries(worksheetCounts)
-      .filter(([, count]) => count === selectedFiles.length)
-      .map(([worksheet]) => worksheet);
+      .map(([worksheet, count]) => ({ worksheet, count }));
+  };
+
+  const getWorksheetDisplayName = (worksheet: string, count: number) => {
+    return `${worksheet} (${count}/${selectedFiles.length} files)`;
   };
 
   const getSelectedWorksheet = (fileId: string) => {
@@ -225,10 +228,10 @@ export function WorksheetSelection({
                     </SelectTrigger>
                       <SelectContent className="bg-white z-50">
                         {availableGlobalWorksheets
-                          .filter(worksheet => worksheet && typeof worksheet === 'string' && worksheet.trim().length > 0)
-                          .map((worksheet) => (
+                          .filter(({ worksheet }) => worksheet && typeof worksheet === 'string' && worksheet.trim().length > 0)
+                          .map(({ worksheet, count }) => (
                             <SelectItem key={worksheet} value={worksheet}>
-                              {worksheet}
+                              {getWorksheetDisplayName(worksheet, count)}
                             </SelectItem>
                           ))}
                       </SelectContent>
