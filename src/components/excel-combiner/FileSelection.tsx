@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Upload, X, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, X, FileSpreadsheet, AlertCircle, Loader2, RotateCcw } from 'lucide-react';
 import { ExcelFile } from '../ExcelCombiner';
 
 interface FileSelectionProps {
@@ -93,6 +93,14 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
     onFilesChange(selectedFiles.filter(f => f.id !== fileId));
   };
 
+  const reloadFiles = () => {
+    onFilesChange([]);
+    // Clear the file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const canProceed = selectedFiles.length >= 2;
 
   return (
@@ -149,11 +157,22 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
         </div>
 
         {/* Selected Files */}
-        {selectedFiles.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-excel-primary">
-              Selected Files ({selectedFiles.length}/5)
-            </h3>
+         {selectedFiles.length > 0 && (
+           <div className="space-y-4">
+             <div className="flex items-center justify-between">
+               <h3 className="text-lg font-medium text-excel-primary">
+                 Selected Files ({selectedFiles.length}/5)
+               </h3>
+               <Button
+                 variant="outline"
+                 size="sm"
+                 onClick={reloadFiles}
+                 className="text-muted-foreground hover:text-foreground"
+               >
+                 <RotateCcw className="mr-2 h-4 w-4" />
+                 Reload Files
+               </Button>
+             </div>
             <div className="grid gap-3">
               {selectedFiles.map((file) => (
                 <Card key={file.id} className="p-4 bg-muted/30">
