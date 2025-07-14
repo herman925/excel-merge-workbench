@@ -9,34 +9,49 @@ All colors MUST be HSL.
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 230 54% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 230 54% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 230 54% 20%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 230 54% 37%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 32 94% 59%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 230 20% 96%;
+    --muted-foreground: 230 10% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 87 48% 53%;
+    --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 350 84% 62%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 230 20% 90%;
+    --input: 230 20% 95%;
+    --ring: 230 54% 37%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+    
+    /* Custom Excel Combiner Colors */
+    --excel-primary: 230 54% 37%;
+    --excel-secondary: 32 94% 59%;
+    --excel-accent-pink: 350 84% 62%;
+    --excel-accent-green: 87 48% 53%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(230 54% 37%), hsl(230 54% 45%));
+    --gradient-secondary: linear-gradient(135deg, hsl(32 94% 59%), hsl(32 94% 65%));
+    --gradient-hero: linear-gradient(135deg, hsl(230 54% 37%) 0%, hsl(32 94% 59%) 100%);
+    
+    /* Shadows */
+    --shadow-primary: 0 10px 30px -5px hsl(230 54% 37% / 0.2);
+    --shadow-card: 0 4px 20px -2px hsl(230 20% 40% / 0.1);
 
     --sidebar-background: 0 0% 98%;
 
