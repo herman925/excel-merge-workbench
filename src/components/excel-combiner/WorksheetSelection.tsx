@@ -218,13 +218,15 @@ export function WorksheetSelection({
                     <SelectTrigger>
                       <SelectValue placeholder="Select worksheet..." />
                     </SelectTrigger>
-                    <SelectContent className="bg-white z-50">
-                      {availableGlobalWorksheets.map((worksheet) => (
-                        <SelectItem key={worksheet} value={worksheet}>
-                          {worksheet}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
+                      <SelectContent className="bg-white z-50">
+                        {availableGlobalWorksheets
+                          .filter(worksheet => worksheet && worksheet.trim() !== '')
+                          .map((worksheet) => (
+                            <SelectItem key={worksheet} value={worksheet}>
+                              {worksheet}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
                   </Select>
                 </div>
                 
@@ -299,11 +301,13 @@ export function WorksheetSelection({
                         <SelectValue placeholder="Select worksheet..." />
                       </SelectTrigger>
                       <SelectContent className="bg-white z-50">
-                        {file.worksheets.map((worksheet) => (
-                          <SelectItem key={worksheet} value={worksheet}>
-                            {worksheet}
-                          </SelectItem>
-                        ))}
+                        {file.worksheets
+                          .filter(worksheet => worksheet && worksheet.trim() !== '')
+                          .map((worksheet) => (
+                            <SelectItem key={worksheet} value={worksheet}>
+                              {worksheet}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
 
