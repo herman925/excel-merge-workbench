@@ -94,13 +94,20 @@ export class ExcelProcessor {
 
     let combinedRowsData: RowData[];
 
+    console.log('Key column:', this.keyColumn);
+    console.log('Available mappings:', this.mappings.map(m => m.outputColumn));
+
     if (this.keyColumn) {
       // Key-based matching
+      console.log('Using key-based matching with column:', this.keyColumn);
       combinedRowsData = this.combineDataByKey(fileDataMap);
     } else {
       // Row position matching (fallback)
+      console.log('Using row position matching (fallback)');
       combinedRowsData = this.combineDataByPosition(fileDataMap);
     }
+
+    console.log('Combined rows count:', combinedRowsData.length);
 
     // Detect and handle duplicates
     const { uniqueData, duplicateInfo } = this.handleDuplicates(combinedRowsData);
@@ -233,11 +240,35 @@ export class ExcelProcessor {
   }
 
   private combineDataByKey(fileDataMap: Map<string, RowData[]>): RowData[] {
-    if (!this.keyColumn) return [];
+    if (!this.keyColumn) {
+      console.log('No key column specified, returning empty array');
+      return [];
+    }
 
     // Find the key column mapping
     const keyMapping = this.mappings.find(m => m.outputColumn === this.keyColumn);
-    if (!keyMapping) return [];
+    console.log('Looking for key mapping with output column:', this.keyColumn);
+    console.log('Available output columns:', this.mappings.map(m => m.outputColumn));
+    
+    if (!keyMapping) {
+      console.log('Key mapping not found for column:', this.keyColumn);
+      console.log('Available mappings:', this.mappings.map(m => m.outputColumn));
+      
+      // Try to find a mapping where the key column is one of the mapped columns instead
+      const alternativeMapping = this.mappings.find(m => 
+        m.mappings.some(fm => fm.column === this.keyColumn)
+      );
+      
+      if (alternativeMapping) {
+        console.log('Found alternative mapping where key column is a source column:', alternativeMapping);
+        // Use the alternative mapping but we need to handle this differently
+        return this.combineDataByAlternativeKey(fileDataMap, this.keyColumn);
+      }
+      
+      return [];
+    }
+
+    console.log('Found key mapping:', keyMapping);
 
     // Create a map of key values to combined rows
     const keyRowMap = new Map<string, any[]>();
@@ -398,5 +429,79 @@ export class ExcelProcessor {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
+  }
+
+  private combineDataByAlternativeKey(fileDataMap: Map<string, RowData[]>, keyColumnName: string): RowData[] {
+    console.log('Using alternative key matching for column:', keyColumnName);
+    
+    // Create a map of key values to combined rows
+    const keyRowMap = new Map<string, any[]>();
+
+    // First pass: collect all unique key values from all files
+    fileDataMap.forEach((fileRows, fileId) => {
+      const worksheet = this.worksheets.find(w => w.fileId === fileId);
+      if (!worksheet) return;
+
+      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
+      if (keyColumnIndex < 0) {
+        console.log(`Key column "${keyColumnName}" not found in worksheet for file ${fileId}`);
+        return;
+      }
+
+      fileRows.forEach(row => {
+        const keyValue = String(row.data[keyColumnIndex] || '').trim();
+        if (keyValue && !keyRowMap.has(keyValue)) {
+          keyRowMap.set(keyValue, new Array(this.mappings.length).fill(''));
+        }
+      });
+    });
+
+    console.log('Found unique key values:', keyRowMap.size);
+
+    // Second pass: populate the combined rows
+    fileDataMap.forEach((fileRows, fileId) => {
+      const worksheet = this.worksheets.find(w => w.fileId === fileId);
+      if (!worksheet) return;
+
+      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
+      if (keyColumnIndex < 0) return;
+
+      fileRows.forEach(row => {
+        const keyValue = String(row.data[keyColumnIndex] || '').trim();
+        if (!keyValue || !keyRowMap.has(keyValue)) return;
+
+        const combinedRow = keyRowMap.get(keyValue)!;
+
+        // Apply all column mappings for this file
+        this.mappings.forEach((mapping, mappingIndex) => {
+          const fileMapping = mapping.mappings.find(m => m.fileId === fileId);
+          if (fileMapping) {
+            const columnIndex = worksheet.columns.indexOf(fileMapping.column);
+            if (columnIndex >= 0 && columnIndex < row.data.length) {
+              const cellValue = row.data[columnIndex];
+              if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+                combinedRow[mappingIndex] = cellValue;
+              }
+            }
+          }
+        });
+      });
+    });
+
+    // Convert map to RowData array
+    const combinedRowsData: RowData[] = [];
+    keyRowMap.forEach((rowData, keyValue) => {
+      if (rowData.some(cell => cell !== '')) {
+        combinedRowsData.push({
+          data: rowData,
+          sourceFile: 'combined',
+          sourceWorksheet: 'combined',
+          originalRowIndex: combinedRowsData.length + 1
+        });
+      }
+    });
+
+    console.log('Alternative key matching produced rows:', combinedRowsData.length);
+    return combinedRowsData;
   }
 }
