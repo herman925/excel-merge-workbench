@@ -7,6 +7,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { ArrowLeft, Eye, FileSpreadsheet, Settings, Loader2 } from 'lucide-react';
 import { WorksheetData, ExcelFile } from '../ExcelCombiner';
+import { readColumnHeaders } from '../../lib/excel-utils';
 
 interface ColumnPreviewProps {
   selectedFiles: ExcelFile[];
@@ -40,22 +41,8 @@ export function ColumnPreview({
             return;
           }
           
-          // Get the range of the worksheet
-          const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-          const columns: string[] = [];
-          
-          // Read the specified header row to get column names
-          const headerRowIndex = headerRow - 1; // Convert to 0-based index
-          for (let col = range.s.c; col <= range.e.c; col++) {
-            const cellAddress = XLSX.utils.encode_cell({ r: headerRowIndex, c: col });
-            const cell = worksheet[cellAddress];
-            if (cell && cell.v) {
-              columns.push(String(cell.v));
-            } else {
-              columns.push(`Column ${String.fromCharCode(65 + col)}`);
-            }
-          }
-          
+          // Use the enhanced column header reading that handles merged cells
+          const columns = readColumnHeaders(worksheet, headerRow);
           resolve(columns);
         } catch (error) {
           console.error('Error parsing worksheet columns:', error);

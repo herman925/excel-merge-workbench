@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { ExcelFile, WorksheetData, ColumnMapping } from '../components/ExcelCombiner';
+import { readColumnHeaders } from './excel-utils';
 
 export interface ProcessingResults {
   combinedData: any[][];
@@ -148,6 +149,9 @@ export class ExcelProcessor {
             return;
           }
 
+          // Note: Column headers are already parsed with merged cell handling in ColumnPreview step
+          // and stored in worksheet.columns. This function only reads data rows.
+          
           // Convert to array of arrays, skipping header row
           const jsonData = XLSX.utils.sheet_to_json(worksheetObj, { 
             header: 1,
