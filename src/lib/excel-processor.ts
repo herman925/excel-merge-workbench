@@ -323,7 +323,9 @@ export class ExcelProcessor {
             const columnIndex = worksheet.columns.indexOf(fileMapping.column);
             if (columnIndex >= 0 && columnIndex < row.data.length) {
               const cellValue = row.data[columnIndex];
-              if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+              // Only write if the position is empty (first non-empty value wins)
+              if (cellValue !== null && cellValue !== undefined && cellValue !== '' && 
+                  (combinedRow[mappingIndex] === '' || combinedRow[mappingIndex] === null || combinedRow[mappingIndex] === undefined)) {
                 combinedRow[mappingIndex] = cellValue;
               }
             }
@@ -366,7 +368,9 @@ export class ExcelProcessor {
               const columnIndex = worksheet.columns.indexOf(fileMapping.column);
               if (columnIndex >= 0 && columnIndex < fileData[rowIndex].data.length) {
                 const cellValue = fileData[rowIndex].data[columnIndex];
-                if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+                // Only write if the position is empty (first non-empty value wins)
+                if (cellValue !== null && cellValue !== undefined && cellValue !== '' && 
+                    (combinedRowData[mappingIndex] === '' || combinedRowData[mappingIndex] === null || combinedRowData[mappingIndex] === undefined)) {
                   combinedRowData[mappingIndex] = cellValue;
                 }
               }
@@ -486,7 +490,9 @@ export class ExcelProcessor {
             const columnIndex = worksheet.columns.indexOf(fileMapping.column);
             if (columnIndex >= 0 && columnIndex < row.data.length) {
               const cellValue = row.data[columnIndex];
-              if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+              // Only write if the position is empty (first non-empty value wins)
+              if (cellValue !== null && cellValue !== undefined && cellValue !== '' && 
+                  (combinedRow[mappingIndex] === '' || combinedRow[mappingIndex] === null || combinedRow[mappingIndex] === undefined)) {
                 combinedRow[mappingIndex] = cellValue;
               }
             }
@@ -572,7 +578,9 @@ export class ExcelProcessor {
             const columnIndex = worksheet.columns.indexOf(fileMapping.column);
             if (columnIndex >= 0 && columnIndex < row.data.length) {
               const cellValue = row.data[columnIndex];
-              if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+              // Only write if the position is empty (first non-empty value wins)
+              if (cellValue !== null && cellValue !== undefined && cellValue !== '' && 
+                  (combinedRow[mappingIndex] === '' || combinedRow[mappingIndex] === null || combinedRow[mappingIndex] === undefined)) {
                 combinedRow[mappingIndex] = cellValue;
               }
             }
