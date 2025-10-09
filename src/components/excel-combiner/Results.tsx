@@ -33,6 +33,7 @@ export function Results({ results, onBack, onStartOver, worksheets }: ResultsPro
       </div>
     );
   }
+  const [logFilter, setLogFilter] = React.useState<'all' | 'conflicts'>('all');
 
   const handleDownload = () => {
     // Generate yyyymmdd format

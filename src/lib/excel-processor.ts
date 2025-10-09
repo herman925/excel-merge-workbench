@@ -72,6 +72,26 @@ export class ExcelProcessor {
     this.keyColumn = keyColumn;
   }
 
+  // Normalize header names to improve matching across files
+  private normalizeHeader(name: string): string {
+    return (name ?? '').toString()
+      .replace(/^\uFEFF/, '') // strip BOM if present
+      .replace(/\u200B/g, '') // remove zero-width spaces
+      .trim()
+      .replace(/\s+/g, ' ') // collapse whitespace
+      .toLowerCase();
+  }
+
+  private findColumnIndex(columns: string[], targetName: string): number {
+    if (!Array.isArray(columns)) return -1;
+    const exact = columns.indexOf(targetName);
+    if (exact >= 0) return exact;
+    const trimmed = columns.findIndex(c => (c ?? '').toString().trim() === (targetName ?? '').toString().trim());
+    if (trimmed >= 0) return trimmed;
+    const targetNorm = this.normalizeHeader(targetName);
+    return columns.findIndex(c => this.normalizeHeader(c) === targetNorm);
+  }
+
   async processFiles(): Promise<ProcessingResults> {
     console.log('Starting Excel processing...');
     
@@ -226,7 +246,7 @@ export class ExcelProcessor {
       this.mappings.forEach((mapping, mappingIndex) => {
         const fileMapping = mapping.mappings.find(m => m.fileId === worksheet.fileId);
         if (fileMapping) {
-          const columnIndex = worksheet.columns.indexOf(fileMapping.column);
+           const columnIndex = this.findColumnIndex(worksheet.columns, fileMapping.column);
           if (columnIndex >= 0 && columnIndex < rowData.data.length) {
             mappedRowData[mappingIndex] = rowData.data[columnIndex] || '';
           }
@@ -317,7 +337,7 @@ export class ExcelProcessor {
       const keyFileMapping = keyMapping.mappings.find(m => m.fileId === fileId);
       if (!keyFileMapping) return;
 
-      const keyColumnIndex = worksheet.columns.indexOf(keyFileMapping.column);
+       const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyFileMapping.column);
       if (keyColumnIndex < 0) return;
 
       fileRows.forEach(row => {
@@ -336,7 +356,7 @@ export class ExcelProcessor {
       const keyFileMapping = keyMapping.mappings.find(m => m.fileId === fileId);
       if (!keyFileMapping) return;
 
-      const keyColumnIndex = worksheet.columns.indexOf(keyFileMapping.column);
+      const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyFileMapping.column);
       if (keyColumnIndex < 0) return;
 
       fileRows.forEach(row => {
@@ -349,7 +369,7 @@ export class ExcelProcessor {
         this.mappings.forEach((mapping, mappingIndex) => {
           const fileMapping = mapping.mappings.find(m => m.fileId === fileId);
           if (fileMapping) {
-            const columnIndex = worksheet.columns.indexOf(fileMapping.column);
+             const columnIndex = this.findColumnIndex(worksheet.columns, fileMapping.column);
             if (columnIndex >= 0 && columnIndex < row.data.length) {
               const cellValue = row.data[columnIndex];
               // Only write if the position is empty (first non-empty value wins)
@@ -394,7 +414,7 @@ export class ExcelProcessor {
           if (fileData && fileData[rowIndex]) {
             const worksheet = this.worksheets.find(w => w.fileId === fileMapping.fileId);
             if (worksheet) {
-              const columnIndex = worksheet.columns.indexOf(fileMapping.column);
+               const columnIndex = this.findColumnIndex(worksheet.columns, fileMapping.column);
               if (columnIndex >= 0 && columnIndex < fileData[rowIndex].data.length) {
                 const cellValue = fileData[rowIndex].data[columnIndex];
                 // Only write if the position is empty (first non-empty value wins)
@@ -507,7 +527,7 @@ export class ExcelProcessor {
       const worksheet = this.worksheets.find(w => w.fileId === fileId);
       if (!worksheet) return;
 
-      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
+       const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyColumnName);
       if (keyColumnIndex < 0) {
         console.log(`Key column "${keyColumnName}" not found in worksheet for file ${fileId}`);
         return;
@@ -528,7 +548,7 @@ export class ExcelProcessor {
       const worksheet = this.worksheets.find(w => w.fileId === fileId);
       if (!worksheet) return;
 
-      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
+       const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyColumnName);
       if (keyColumnIndex < 0) return;
 
       fileRows.forEach(row => {
@@ -541,7 +561,7 @@ export class ExcelProcessor {
         this.mappings.forEach((mapping, mappingIndex) => {
           const fileMapping = mapping.mappings.find(m => m.fileId === fileId);
           if (fileMapping) {
-            const columnIndex = worksheet.columns.indexOf(fileMapping.column);
+             const columnIndex = this.findColumnIndex(worksheet.columns, fileMapping.column);
             if (columnIndex >= 0 && columnIndex < row.data.length) {
               const cellValue = row.data[columnIndex];
               // Only write if the position is empty (first non-empty value wins)
@@ -591,7 +611,7 @@ export class ExcelProcessor {
         return;
       }
 
-      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
+       const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyColumnName);
       if (keyColumnIndex < 0) {
         console.log(`Key column "${keyColumnName}" not found in worksheet for file ${fileId}`);
         return;
@@ -624,7 +644,7 @@ export class ExcelProcessor {
       const keyColumnName = worksheet.keyColumn || this.keyColumn;
       if (!keyColumnName) return;
 
-      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
+      const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyColumnName);
       if (keyColumnIndex < 0) return;
 
       const file = this.files.find(f => f.id === fileId);
@@ -641,7 +661,7 @@ export class ExcelProcessor {
         this.mappings.forEach((mapping, mappingIndex) => {
           const fileMapping = mapping.mappings.find(m => m.fileId === fileId);
           if (fileMapping) {
-            const columnIndex = worksheet.columns.indexOf(fileMapping.column);
+            const columnIndex = this.findColumnIndex(worksheet.columns, fileMapping.column);
             if (columnIndex >= 0 && columnIndex < row.data.length) {
               const cellValue = row.data[columnIndex];
               const trimmedValue = typeof cellValue === 'string' ? cellValue.trim() : cellValue;
