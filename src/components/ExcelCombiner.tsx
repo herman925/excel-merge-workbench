@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { FileSelection } from './excel-combiner/FileSelection';
 import { WorksheetSelection } from './excel-combiner/WorksheetSelection';
 import { ColumnPreview } from './excel-combiner/ColumnPreview';
 import { ColumnMapping } from './excel-combiner/ColumnMapping';
+import { RearrangeColumns } from './excel-combiner/RearrangeColumns';
 import { Results } from './excel-combiner/Results';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
@@ -15,6 +17,7 @@ export interface ExcelFile {
   name: string;
   file: File;
   worksheets: string[];
+  readError?: string;
 }
 
 export interface WorksheetData {
@@ -30,7 +33,7 @@ export interface ColumnMapping {
   mappings: { fileId: string; column: string }[];
 }
 
-type Step = 'file-selection' | 'worksheet-selection' | 'column-preview' | 'column-mapping' | 'results';
+type Step = 'file-selection' | 'worksheet-selection' | 'column-preview' | 'column-mapping' | 'rearrange-columns' | 'results';
 
 export function ExcelCombiner() {
   const [currentStep, setCurrentStep] = useState<Step>('file-selection');
@@ -38,6 +41,8 @@ export function ExcelCombiner() {
   const [selectedWorksheets, setSelectedWorksheets] = useState<WorksheetData[]>([]);
   const [keyColumn, setKeyColumn] = useState<string>('');
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
+  const [allowIncompleteMappings, setAllowIncompleteMappings] = useState(false);
+  const [allowDoubleMapping, setAllowDoubleMapping] = useState(false);
   const [results, setResults] = useState<ProcessingResults | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
@@ -47,12 +52,179 @@ export function ExcelCombiner() {
     { id: 'worksheet-selection', title: 'Choose Worksheets', icon: FileSpreadsheet },
     { id: 'column-preview', title: 'Preview Columns', icon: FileSpreadsheet },
     { id: 'column-mapping', title: 'Map Columns', icon: FileSpreadsheet },
+    { id: 'rearrange-columns', title: 'Rearrange Columns', icon: FileSpreadsheet },
     { id: 'results', title: 'Results', icon: FileSpreadsheet },
   ];
 
   const currentStepIndex = steps.findIndex(step => step.id === currentStep);
 
+  const parseWorksheetColumns = async (file: File, worksheetName: string, headerRow: number = 1): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const worksheet = workbook.Sheets[worksheetName];
+
+          if (!worksheet) {
+            resolve([]);
+            return;
+          }
+
+          const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+          const columns: string[] = [];
+          const headerRowIndex = headerRow - 1;
+
+          for (let col = range.s.c; col <= range.e.c; col++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: headerRowIndex, c: col });
+            const cell = worksheet[cellAddress];
+            if (cell && cell.v) {
+              columns.push(String(cell.v));
+            } else {
+              columns.push(`Column ${String.fromCharCode(65 + col)}`);
+            }
+          }
+
+          resolve(columns);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const handleFilesChange = async (files: ExcelFile[]) => {
+    const validFileIds = new Set(files.filter(file => !file.readError).map(file => file.id));
+    const previousFilesById = new Map(selectedFiles.map(file => [file.id, file]));
+    const changedFileIds = new Set(
+      files
+        .filter((file) => previousFilesById.get(file.id)?.file !== file.file)
+        .map((file) => file.id)
+    );
+
+    setSelectedFiles(files);
+    setResults(null);
+
+    const retainedWorksheets = selectedWorksheets.filter((worksheet) => validFileIds.has(worksheet.fileId));
+    const reparsedWorksheets = await Promise.all(
+      retainedWorksheets.map(async (worksheet) => {
+        if (!changedFileIds.has(worksheet.fileId)) {
+          return worksheet;
+        }
+
+        const file = files.find((candidate) => candidate.id === worksheet.fileId);
+        if (!file || file.readError || !file.worksheets.includes(worksheet.worksheetName)) {
+          return null;
+        }
+
+        try {
+          const columns = await parseWorksheetColumns(file.file, worksheet.worksheetName, worksheet.headerRow);
+          return {
+            ...worksheet,
+            columns,
+            keyColumn: worksheet.keyColumn && columns.includes(worksheet.keyColumn)
+              ? worksheet.keyColumn
+              : undefined,
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    const nextWorksheets = reparsedWorksheets.filter((worksheet): worksheet is WorksheetData => !!worksheet);
+    setSelectedWorksheets(nextWorksheets);
+
+    if (nextWorksheets.length === 0) {
+      setKeyColumn('');
+    } else if (keyColumn) {
+      const keyStillExists = nextWorksheets.some((worksheet) => worksheet.keyColumn === keyColumn);
+      if (!keyStillExists) {
+        setKeyColumn('');
+      }
+    }
+
+    const worksheetMap = new Map(nextWorksheets.map((worksheet) => [worksheet.fileId, worksheet]));
+    setColumnMappings(prev => prev.map(mapping => ({
+      ...mapping,
+      mappings: mapping.mappings.filter(fileMapping => {
+        const worksheet = worksheetMap.get(fileMapping.fileId);
+        return !!worksheet && worksheet.columns.includes(fileMapping.column);
+      })
+    })));
+
+    if (files.length === 0) {
+      setAllowIncompleteMappings(false);
+    }
+  };
+
+  const handleFileReadError = (fileId: string, message: string) => {
+    setSelectedFiles((prev) => prev.map((file) =>
+      file.id === fileId ? { ...file, readError: message } : file
+    ));
+    setSelectedWorksheets((prev) => prev.filter((worksheet) => worksheet.fileId !== fileId));
+    setColumnMappings((prev) => prev.map((mapping) => ({
+      ...mapping,
+      mappings: mapping.mappings.filter((fileMapping) => fileMapping.fileId !== fileId),
+    })));
+    setResults(null);
+  };
+
+  const normalizeColumnMappings = (mappings: ColumnMapping[], shouldAllowDoubleMapping: boolean) => {
+    if (shouldAllowDoubleMapping) {
+      return mappings;
+    }
+
+    const usedMappings = new Set<string>();
+
+    return mappings.map((mapping) => ({
+      ...mapping,
+      mappings: mapping.mappings.filter((fileMapping) => {
+        const key = `${fileMapping.fileId}::${fileMapping.column}`;
+
+        if (!fileMapping.column?.trim()) {
+          return false;
+        }
+
+        if (usedMappings.has(key)) {
+          return false;
+        }
+
+        usedMappings.add(key);
+        return true;
+      }),
+    }));
+  };
+
+  const handleMappingsChange = (mappings: ColumnMapping[]) => {
+    setColumnMappings(normalizeColumnMappings(mappings, allowDoubleMapping));
+    setResults(null);
+  };
+
+  const handleAllowDoubleMappingChange = (value: boolean) => {
+    setAllowDoubleMapping(value);
+    setColumnMappings((prev) => normalizeColumnMappings(prev, value));
+    setResults(null);
+  };
+
   const handleNext = async () => {
+    const unreadableFiles = selectedFiles.filter((file) => file.readError);
+    if (unreadableFiles.length > 0) {
+      setCurrentStep('file-selection');
+      toast({
+        title: 'Re-select unreadable files',
+        description: `${unreadableFiles.map((file) => file.name).join(', ')} must be re-selected before continuing.`,
+        variant: 'destructive'
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     const nextIndex = currentStepIndex + 1;
     if (nextIndex < steps.length) {
       const nextStep = steps[nextIndex].id as Step;
@@ -96,7 +268,7 @@ export function ExcelCombiner() {
       console.error('Error processing Excel files:', error);
       toast({
         title: "Processing Failed",
-        description: "An error occurred while processing the Excel files. Please try again.",
+        description: error instanceof Error ? error.message : "An error occurred while processing the Excel files. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -186,7 +358,7 @@ export function ExcelCombiner() {
           {currentStep === 'file-selection' && (
             <FileSelection 
               selectedFiles={selectedFiles}
-              onFilesChange={setSelectedFiles}
+              onFilesChange={handleFilesChange}
               onNext={handleNext}
             />
           )}
@@ -196,6 +368,7 @@ export function ExcelCombiner() {
               selectedFiles={selectedFiles}
               selectedWorksheets={selectedWorksheets}
               onWorksheetsChange={setSelectedWorksheets}
+              onFileReadError={handleFileReadError}
               keyColumn={keyColumn}
               onKeyColumnChange={setKeyColumn}
               onNext={handleNext}
@@ -209,6 +382,7 @@ export function ExcelCombiner() {
               selectedFiles={selectedFiles}
               selectedWorksheets={selectedWorksheets}
               onWorksheetsChange={setSelectedWorksheets}
+              onFileReadError={handleFileReadError}
               onNext={handleNext}
               onBack={handleBack}
             />
@@ -219,7 +393,22 @@ export function ExcelCombiner() {
               selectedFiles={selectedFiles}
               selectedWorksheets={selectedWorksheets}
               columnMappings={columnMappings}
-              onMappingsChange={setColumnMappings}
+              onMappingsChange={handleMappingsChange}
+              allowIncompleteMappings={allowIncompleteMappings}
+              onAllowIncompleteMappingsChange={setAllowIncompleteMappings}
+              allowDoubleMapping={allowDoubleMapping}
+              onAllowDoubleMappingChange={handleAllowDoubleMappingChange}
+              onNext={handleNext}
+              onBack={handleBack}
+              isProcessing={isProcessing}
+            />
+          )}
+
+          {currentStep === 'rearrange-columns' && (
+            <RearrangeColumns
+              columnMappings={columnMappings}
+              selectedWorksheets={selectedWorksheets}
+              onMappingsChange={handleMappingsChange}
               onNext={handleNext}
               onBack={handleBack}
               isProcessing={isProcessing}
@@ -231,11 +420,14 @@ export function ExcelCombiner() {
             results={results} 
             onBack={handleBack} 
             onStartOver={() => {
-              setCurrentStep('file-selection');
-              setSelectedFiles([]);
               setSelectedWorksheets([]);
+              setKeyColumn('');
               setColumnMappings([]);
+              setAllowIncompleteMappings(false);
+              setAllowDoubleMapping(false);
+              setCurrentStep('file-selection');
               setResults(null);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             worksheets={selectedWorksheets}
           />

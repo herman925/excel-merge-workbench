@@ -1,6 +1,5 @@
 import * as XLSX from 'xlsx';
 import { ExcelFile, WorksheetData, ColumnMapping } from '../components/ExcelCombiner';
-import { readColumnHeaders } from './excel-utils';
 
 export interface ProcessingResults {
   combinedData: any[][];
@@ -10,22 +9,6 @@ export interface ProcessingResults {
   duplicatesRemoved: number;
   successfulFiles: number;
   previewData: any[][];
-  mergeLog: MergeLogEntry[];
-}
-
-export interface MergeLogEntry {
-  rowIndex: number;
-  outputColumn: string;
-  valueUsed: any;
-  sourceFile: string;
-  sourceColumn: string;
-  conflictingValues: ConflictingValue[];
-}
-
-export interface ConflictingValue {
-  value: any;
-  sourceFile: string;
-  sourceColumn: string;
 }
 
 export interface DuplicateRowInfo {
@@ -48,15 +31,6 @@ interface RowData {
   sourceFile: string;
   sourceWorksheet: string;
   originalRowIndex: number;
-  sourceMappings?: CellSource[];
-}
-
-interface CellSource {
-  outputColumnIndex: number;
-  valueUsed: any;
-  sourceFile: string;
-  sourceColumn: string;
-  conflictingValues: ConflictingValue[];
 }
 
 export class ExcelProcessor {
@@ -72,32 +46,13 @@ export class ExcelProcessor {
     this.keyColumn = keyColumn;
   }
 
-  // Normalize header names to improve matching across files
-  private normalizeHeader(name: string): string {
-    return (name ?? '').toString()
-      .replace(/^\uFEFF/, '') // strip BOM if present
-      .replace(/\u200B/g, '') // remove zero-width spaces
-      .trim()
-      .replace(/\s+/g, ' ') // collapse whitespace
-      .toLowerCase();
-  }
-
-  private findColumnIndex(columns: string[], targetName: string): number {
-    if (!Array.isArray(columns)) return -1;
-    const exact = columns.indexOf(targetName);
-    if (exact >= 0) return exact;
-    const trimmed = columns.findIndex(c => (c ?? '').toString().trim() === (targetName ?? '').toString().trim());
-    if (trimmed >= 0) return trimmed;
-    const targetNorm = this.normalizeHeader(targetName);
-    return columns.findIndex(c => this.normalizeHeader(c) === targetNorm);
-  }
-
   async processFiles(): Promise<ProcessingResults> {
     console.log('Starting Excel processing...');
     
     // Read all data from worksheets organized by file
     const fileDataMap = new Map<string, RowData[]>();
     const unmappedColumns: UnmappedColumnInfo[] = [];
+    const failedFiles: string[] = [];
     let successfulFiles = 0;
 
     for (const worksheet of this.worksheets) {
@@ -132,7 +87,12 @@ export class ExcelProcessor {
         });
       } catch (error) {
         console.error(`Failed to process ${file.name}:`, error);
+        failedFiles.push(file.name);
       }
+    }
+
+    if (failedFiles.length > 0) {
+      throw new Error(`These files could not be read: ${failedFiles.join(', ')}. Please re-select them from disk before processing.`);
     }
 
     const totalRows = Array.from(fileDataMap.values()).reduce((sum, data) => sum + data.length, 0);
@@ -168,9 +128,6 @@ export class ExcelProcessor {
     // Create preview (first 10 rows + headers)
     const previewData = finalData.slice(0, 11); // Headers + 10 data rows
 
-    // Extract merge log from combined data
-    const mergeLog = this.extractMergeLog(combinedRowsData);
-
     return {
       combinedData: finalData,
       duplicateRows: duplicateInfo,
@@ -178,8 +135,7 @@ export class ExcelProcessor {
       totalRowsProcessed: totalRows,
       duplicatesRemoved: duplicateInfo.length,
       successfulFiles,
-      previewData,
-      mergeLog
+      previewData
     };
   }
 
@@ -198,9 +154,6 @@ export class ExcelProcessor {
             return;
           }
 
-          // Note: Column headers are already parsed with merged cell handling in ColumnPreview step
-          // and stored in worksheet.columns. This function only reads data rows.
-          
           // Convert to array of arrays, skipping header row
           const jsonData = XLSX.utils.sheet_to_json(worksheetObj, { 
             header: 1,
@@ -246,7 +199,7 @@ export class ExcelProcessor {
       this.mappings.forEach((mapping, mappingIndex) => {
         const fileMapping = mapping.mappings.find(m => m.fileId === worksheet.fileId);
         if (fileMapping) {
-           const columnIndex = this.findColumnIndex(worksheet.columns, fileMapping.column);
+          const columnIndex = worksheet.columns.indexOf(fileMapping.column);
           if (columnIndex >= 0 && columnIndex < rowData.data.length) {
             mappedRowData[mappingIndex] = rowData.data[columnIndex] || '';
           }
@@ -337,7 +290,7 @@ export class ExcelProcessor {
       const keyFileMapping = keyMapping.mappings.find(m => m.fileId === fileId);
       if (!keyFileMapping) return;
 
-       const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyFileMapping.column);
+      const keyColumnIndex = worksheet.columns.indexOf(keyFileMapping.column);
       if (keyColumnIndex < 0) return;
 
       fileRows.forEach(row => {
@@ -356,7 +309,7 @@ export class ExcelProcessor {
       const keyFileMapping = keyMapping.mappings.find(m => m.fileId === fileId);
       if (!keyFileMapping) return;
 
-      const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyFileMapping.column);
+      const keyColumnIndex = worksheet.columns.indexOf(keyFileMapping.column);
       if (keyColumnIndex < 0) return;
 
       fileRows.forEach(row => {
@@ -369,12 +322,10 @@ export class ExcelProcessor {
         this.mappings.forEach((mapping, mappingIndex) => {
           const fileMapping = mapping.mappings.find(m => m.fileId === fileId);
           if (fileMapping) {
-             const columnIndex = this.findColumnIndex(worksheet.columns, fileMapping.column);
+            const columnIndex = worksheet.columns.indexOf(fileMapping.column);
             if (columnIndex >= 0 && columnIndex < row.data.length) {
               const cellValue = row.data[columnIndex];
-              // Only write if the position is empty (first non-empty value wins)
-              if (cellValue !== null && cellValue !== undefined && cellValue !== '' && 
-                  (combinedRow[mappingIndex] === '' || combinedRow[mappingIndex] === null || combinedRow[mappingIndex] === undefined)) {
+              if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
                 combinedRow[mappingIndex] = cellValue;
               }
             }
@@ -414,12 +365,10 @@ export class ExcelProcessor {
           if (fileData && fileData[rowIndex]) {
             const worksheet = this.worksheets.find(w => w.fileId === fileMapping.fileId);
             if (worksheet) {
-               const columnIndex = this.findColumnIndex(worksheet.columns, fileMapping.column);
+              const columnIndex = worksheet.columns.indexOf(fileMapping.column);
               if (columnIndex >= 0 && columnIndex < fileData[rowIndex].data.length) {
                 const cellValue = fileData[rowIndex].data[columnIndex];
-                // Only write if the position is empty (first non-empty value wins)
-                if (cellValue !== null && cellValue !== undefined && cellValue !== '' && 
-                    (combinedRowData[mappingIndex] === '' || combinedRowData[mappingIndex] === null || combinedRowData[mappingIndex] === undefined)) {
+                if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
                   combinedRowData[mappingIndex] = cellValue;
                 }
               }
@@ -458,31 +407,6 @@ export class ExcelProcessor {
     if (nonEmpty.every(v => ['true', 'false', 'yes', 'no', '1', '0'].includes(v.toLowerCase()))) return 'boolean';
     
     return 'text';
-  }
-
-  private extractMergeLog(combinedRowsData: RowData[]): MergeLogEntry[] {
-    const mergeLog: MergeLogEntry[] = [];
-    
-    combinedRowsData.forEach((rowData, rowIndex) => {
-      if (!rowData.sourceMappings) return;
-      
-      rowData.sourceMappings.forEach((source) => {
-        if (source.sourceFile && (source.conflictingValues.length > 0 || source.valueUsed !== '')) {
-          const outputColumn = this.mappings[source.outputColumnIndex]?.outputColumn || `Column ${source.outputColumnIndex}`;
-          
-          mergeLog.push({
-            rowIndex: rowIndex + 1,
-            outputColumn,
-            valueUsed: source.valueUsed,
-            sourceFile: source.sourceFile,
-            sourceColumn: source.sourceColumn,
-            conflictingValues: source.conflictingValues
-          });
-        }
-      });
-    });
-    
-    return mergeLog;
   }
 
   static generateCSVWithBOM(data: any[][]): Blob {
@@ -527,7 +451,7 @@ export class ExcelProcessor {
       const worksheet = this.worksheets.find(w => w.fileId === fileId);
       if (!worksheet) return;
 
-       const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyColumnName);
+      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
       if (keyColumnIndex < 0) {
         console.log(`Key column "${keyColumnName}" not found in worksheet for file ${fileId}`);
         return;
@@ -548,7 +472,7 @@ export class ExcelProcessor {
       const worksheet = this.worksheets.find(w => w.fileId === fileId);
       if (!worksheet) return;
 
-       const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyColumnName);
+      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
       if (keyColumnIndex < 0) return;
 
       fileRows.forEach(row => {
@@ -561,12 +485,10 @@ export class ExcelProcessor {
         this.mappings.forEach((mapping, mappingIndex) => {
           const fileMapping = mapping.mappings.find(m => m.fileId === fileId);
           if (fileMapping) {
-             const columnIndex = this.findColumnIndex(worksheet.columns, fileMapping.column);
+            const columnIndex = worksheet.columns.indexOf(fileMapping.column);
             if (columnIndex >= 0 && columnIndex < row.data.length) {
               const cellValue = row.data[columnIndex];
-              // Only write if the position is empty (first non-empty value wins)
-              if (cellValue !== null && cellValue !== undefined && cellValue !== '' && 
-                  (combinedRow[mappingIndex] === '' || combinedRow[mappingIndex] === null || combinedRow[mappingIndex] === undefined)) {
+              if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
                 combinedRow[mappingIndex] = cellValue;
               }
             }
@@ -595,9 +517,8 @@ export class ExcelProcessor {
   private combineDataByWorksheetKeys(fileDataMap: Map<string, RowData[]>): RowData[] {
     console.log('Using worksheet-specific key columns');
     
-    // Create a map of key values to combined rows with source tracking
+    // Create a map of key values to combined rows
     const keyRowMap = new Map<string, any[]>();
-    const keySourceMap = new Map<string, CellSource[]>();
 
     // First pass: collect all unique key values from all files using their specific key columns
     fileDataMap.forEach((fileRows, fileId) => {
@@ -611,7 +532,7 @@ export class ExcelProcessor {
         return;
       }
 
-       const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyColumnName);
+      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
       if (keyColumnIndex < 0) {
         console.log(`Key column "${keyColumnName}" not found in worksheet for file ${fileId}`);
         return;
@@ -623,20 +544,13 @@ export class ExcelProcessor {
         const keyValue = String(row.data[keyColumnIndex] || '').trim();
         if (keyValue && !keyRowMap.has(keyValue)) {
           keyRowMap.set(keyValue, new Array(this.mappings.length).fill(''));
-          keySourceMap.set(keyValue, new Array(this.mappings.length).fill(null).map(() => ({
-            outputColumnIndex: -1,
-            valueUsed: '',
-            sourceFile: '',
-            sourceColumn: '',
-            conflictingValues: []
-          })));
         }
       });
     });
 
     console.log('Found unique key values:', keyRowMap.size);
 
-    // Second pass: populate the combined rows with tracking
+    // Second pass: populate the combined rows
     fileDataMap.forEach((fileRows, fileId) => {
       const worksheet = this.worksheets.find(w => w.fileId === fileId);
       if (!worksheet) return;
@@ -644,54 +558,24 @@ export class ExcelProcessor {
       const keyColumnName = worksheet.keyColumn || this.keyColumn;
       if (!keyColumnName) return;
 
-      const keyColumnIndex = this.findColumnIndex(worksheet.columns, keyColumnName);
+      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
       if (keyColumnIndex < 0) return;
-
-      const file = this.files.find(f => f.id === fileId);
-      if (!file) return;
 
       fileRows.forEach(row => {
         const keyValue = String(row.data[keyColumnIndex] || '').trim();
         if (!keyValue || !keyRowMap.has(keyValue)) return;
 
         const combinedRow = keyRowMap.get(keyValue)!;
-        const sources = keySourceMap.get(keyValue)!;
 
         // Apply all column mappings for this file
         this.mappings.forEach((mapping, mappingIndex) => {
           const fileMapping = mapping.mappings.find(m => m.fileId === fileId);
           if (fileMapping) {
-            const columnIndex = this.findColumnIndex(worksheet.columns, fileMapping.column);
+            const columnIndex = worksheet.columns.indexOf(fileMapping.column);
             if (columnIndex >= 0 && columnIndex < row.data.length) {
               const cellValue = row.data[columnIndex];
-              const trimmedValue = typeof cellValue === 'string' ? cellValue.trim() : cellValue;
-              const isEmpty = trimmedValue === null || trimmedValue === undefined || trimmedValue === '';
-              
-              if (!isEmpty) {
-                const currentValue = combinedRow[mappingIndex];
-                const currentValueTrimmed = typeof currentValue === 'string' ? currentValue.trim() : currentValue;
-                const currentIsEmpty = currentValueTrimmed === null || currentValueTrimmed === undefined || currentValueTrimmed === '';
-                
-                if (currentIsEmpty) {
-                  // First non-empty value - use it
-                  combinedRow[mappingIndex] = trimmedValue;
-                  sources[mappingIndex] = {
-                    outputColumnIndex: mappingIndex,
-                    valueUsed: trimmedValue,
-                    sourceFile: file.name,
-                    sourceColumn: fileMapping.column,
-                    conflictingValues: []
-                  };
-                  console.log(`Row key="${keyValue}", Col="${mapping.outputColumn}": Using value "${trimmedValue}" from ${file.name}/${fileMapping.column}`);
-                } else if (String(currentValueTrimmed) !== String(trimmedValue)) {
-                  // Conflicting value detected
-                  sources[mappingIndex].conflictingValues.push({
-                    value: trimmedValue,
-                    sourceFile: file.name,
-                    sourceColumn: fileMapping.column
-                  });
-                  console.log(`Row key="${keyValue}", Col="${mapping.outputColumn}": Conflict detected! Keeping "${currentValueTrimmed}" from ${sources[mappingIndex].sourceFile}, ignoring "${trimmedValue}" from ${file.name}`);
-                }
+              if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+                combinedRow[mappingIndex] = cellValue;
               }
             }
           }
@@ -699,18 +583,15 @@ export class ExcelProcessor {
       });
     });
 
-    // Convert map to RowData array with source tracking
+    // Convert map to RowData array
     const combinedRowsData: RowData[] = [];
     keyRowMap.forEach((rowData, keyValue) => {
-      const trimmedRow = rowData.map(cell => typeof cell === 'string' ? cell.trim() : cell);
-      if (trimmedRow.some(cell => cell !== '')) {
-        const sources = keySourceMap.get(keyValue)!;
+      if (rowData.some(cell => cell !== '')) {
         combinedRowsData.push({
-          data: trimmedRow,
+          data: rowData,
           sourceFile: 'combined',
           sourceWorksheet: 'combined',
-          originalRowIndex: combinedRowsData.length + 1,
-          sourceMappings: sources
+          originalRowIndex: combinedRowsData.length + 1
         });
       }
     });

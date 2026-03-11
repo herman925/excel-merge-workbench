@@ -4,9 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Download, ArrowLeft, CheckCircle, RotateCcw, FileText, AlertTriangle, TrendingUp, Eye } from 'lucide-react';
-import { ProcessingResults, MergeLogEntry } from '../../lib/excel-processor';
+import { ProcessingResults } from '../../lib/excel-processor';
 import { ExcelProcessor } from '../../lib/excel-processor';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 
 interface ResultsProps {
   results: ProcessingResults | null;
@@ -33,15 +32,8 @@ export function Results({ results, onBack, onStartOver, worksheets }: ResultsPro
       </div>
     );
   }
-  const [logFilter, setLogFilter] = React.useState<'all' | 'conflicts'>('all');
 
   const handleDownload = () => {
-    // Generate yyyymmdd format
-    const today = new Date();
-    const yyyymmdd = today.getFullYear().toString() + 
-                    (today.getMonth() + 1).toString().padStart(2, '0') + 
-                    today.getDate().toString().padStart(2, '0');
-    
     // Determine most frequent worksheet name
     const worksheetNames = worksheets.map(w => w.worksheetName);
     const nameCounts = worksheetNames.reduce((acc, name) => {
@@ -59,8 +51,8 @@ export function Results({ results, onBack, onStartOver, worksheets }: ResultsPro
         mostFrequentName = name;
       }
     }
-    
-    const filename = `${yyyymmdd}_Combined_${mostFrequentName}.csv`;
+
+    const filename = `${mostFrequentName}.csv`;
     
     const blob = ExcelProcessor.generateCSVWithBOM(results.combinedData);
     ExcelProcessor.downloadFile(blob, filename);
@@ -207,82 +199,6 @@ export function Results({ results, onBack, onStartOver, worksheets }: ResultsPro
             </p>
           </CardContent>
         </Card>
-
-        {/* Merge Log */}
-        {results.mergeLog && results.mergeLog.length > 0 && (
-          <Card className="border-purple-200 bg-purple-50 dark:bg-purple-900/20 dark:border-purple-800">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-purple-700 dark:text-purple-400">
-                <FileText className="h-5 w-5" />
-                <span>Column Merge Tracking</span>
-              </CardTitle>
-              <CardDescription className="text-purple-600 dark:text-purple-300">
-                Detailed log showing which file's value was used for each cell
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Accordion type="single" collapsible className="space-y-2">
-                {results.mergeLog
-                  .filter(entry => entry.conflictingValues.length > 0)
-                  .slice(0, 20)
-                  .map((entry, index) => (
-                    <AccordionItem key={index} value={`item-${index}`} className="bg-white dark:bg-purple-900/30 rounded-lg border border-purple-200 dark:border-purple-700">
-                      <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                        <div className="flex items-center justify-between w-full pr-4">
-                          <span className="font-medium text-purple-800 dark:text-purple-200">
-                            Row {entry.rowIndex} → {entry.outputColumn}
-                          </span>
-                          <Badge variant="destructive" className="ml-2">
-                            {entry.conflictingValues.length} conflict{entry.conflictingValues.length > 1 ? 's' : ''}
-                          </Badge>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="px-4 pb-3 space-y-3">
-                        <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-700">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            <span className="text-sm font-semibold text-green-700 dark:text-green-400">Value Used</span>
-                          </div>
-                          <div className="text-sm text-green-800 dark:text-green-300">
-                            <span className="font-mono bg-white dark:bg-green-900/40 px-2 py-1 rounded">{entry.valueUsed || '(empty)'}</span>
-                          </div>
-                          <div className="text-xs text-green-600 dark:text-green-400 mt-2">
-                            From: <span className="font-medium">{entry.sourceFile}</span> / {entry.sourceColumn}
-                          </div>
-                        </div>
-                        
-                        {entry.conflictingValues.map((conflict, cidx) => (
-                          <div key={cidx} className="p-3 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-700">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <AlertTriangle className="h-4 w-4 text-red-600" />
-                              <span className="text-sm font-semibold text-red-700 dark:text-red-400">Conflicting Value (Ignored)</span>
-                            </div>
-                            <div className="text-sm text-red-800 dark:text-red-300">
-                              <span className="font-mono bg-white dark:bg-red-900/40 px-2 py-1 rounded">{conflict.value || '(empty)'}</span>
-                            </div>
-                            <div className="text-xs text-red-600 dark:text-red-400 mt-2">
-                              From: <span className="font-medium">{conflict.sourceFile}</span> / {conflict.sourceColumn}
-                            </div>
-                          </div>
-                        ))}
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-              </Accordion>
-              {results.mergeLog.filter(e => e.conflictingValues.length > 0).length > 20 && (
-                <p className="text-sm text-purple-600 text-center mt-4">
-                  ... and {results.mergeLog.filter(e => e.conflictingValues.length > 0).length - 20} more conflicts
-                </p>
-              )}
-              {results.mergeLog.filter(e => e.conflictingValues.length > 0).length === 0 && (
-                <div className="text-center py-4 text-purple-600 dark:text-purple-400">
-                  <CheckCircle className="h-8 w-8 mx-auto mb-2" />
-                  <p>No conflicts detected! All values merged cleanly.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
 
         {/* Warnings/Issues */}
         {(results.unmappedColumns.length > 0 || results.duplicateRows.length > 0) && (

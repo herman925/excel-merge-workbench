@@ -7,12 +7,12 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { ArrowLeft, Eye, FileSpreadsheet, Settings, Loader2 } from 'lucide-react';
 import { WorksheetData, ExcelFile } from '../ExcelCombiner';
-import { readColumnHeaders } from '../../lib/excel-utils';
 
 interface ColumnPreviewProps {
   selectedFiles: ExcelFile[];
   selectedWorksheets: WorksheetData[];
   onWorksheetsChange: (worksheets: WorksheetData[]) => void;
+  onFileReadError: (fileId: string, message: string) => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -21,6 +21,7 @@ export function ColumnPreview({
   selectedFiles,
   selectedWorksheets,
   onWorksheetsChange,
+  onFileReadError,
   onNext,
   onBack
 }: ColumnPreviewProps) {
@@ -41,8 +42,22 @@ export function ColumnPreview({
             return;
           }
           
-          // Use the enhanced column header reading that handles merged cells
-          const columns = readColumnHeaders(worksheet, headerRow);
+          // Get the range of the worksheet
+          const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+          const columns: string[] = [];
+          
+          // Read the specified header row to get column names
+          const headerRowIndex = headerRow - 1; // Convert to 0-based index
+          for (let col = range.s.c; col <= range.e.c; col++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: headerRowIndex, c: col });
+            const cell = worksheet[cellAddress];
+            if (cell && cell.v) {
+              columns.push(String(cell.v));
+            } else {
+              columns.push(`Column ${String.fromCharCode(65 + col)}`);
+            }
+          }
+          
           resolve(columns);
         } catch (error) {
           console.error('Error parsing worksheet columns:', error);
@@ -60,6 +75,10 @@ export function ColumnPreview({
     const file = selectedFiles.find(f => f.id === fileId);
     
     if (!worksheet || !file) return;
+    if (file.readError) {
+      onFileReadError(fileId, file.readError);
+      return;
+    }
     
     setIsUpdating(fileId);
     
@@ -73,6 +92,7 @@ export function ColumnPreview({
       );
     } catch (error) {
       console.error('Failed to update header row:', error);
+      onFileReadError(fileId, 'This file could not be read. Please re-select it from disk.');
     } finally {
       setIsUpdating('');
     }

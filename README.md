@@ -1,73 +1,57 @@
-# Welcome to your Lovable project
+# Excel Merge Workbench
 
-## Project info
+Excel Merge Workbench is a browser-based utility for combining data from multiple Excel workbooks into a single output sheet. It supports selecting worksheets per file, previewing headers, mapping source columns into a unified schema, rearranging output columns, and exporting the merged result.
 
-**URL**: https://lovable.dev/projects/d2a43c93-38b9-4fd9-a4f3-d939042c44b7
+## Features
 
-## How can I edit this code?
+- Import multiple Excel files in `.xlsx` format.
+- Select the worksheet and header row for each source file.
+- Preview detected columns before merging.
+- Map columns from different workbooks into a shared output structure.
+- Rearrange output columns before generating results.
+- Review processing results in the browser.
 
-There are several ways of editing your application.
+## Tech stack
 
-**Use Lovable**
+- Vite
+- React
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- `xlsx`
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/d2a43c93-38b9-4fd9-a4f3-d939042c44b7) and start prompting.
+## Local development
 
-Changes made via Lovable will be committed automatically to this repo.
+Requirements:
 
-**Use your preferred IDE**
+- Node.js 18+
+- npm
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Start the app locally:
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Build for production:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```sh
+npm run build
+```
 
-**Use GitHub Codespaces**
+Preview the production build locally:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```sh
+npm run preview
+```
 
-## What technologies are used for this project?
+## Project structure
 
-This project is built with:
+- `src/components` contains the main Excel combiner workflow UI.
+- `src/lib` contains the Excel processing and utility logic.
+- `src/pages` contains route-level pages.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Notes
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/d2a43c93-38b9-4fd9-a4f3-d939042c44b7) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- This repository is maintained as a standard Vite/React project.

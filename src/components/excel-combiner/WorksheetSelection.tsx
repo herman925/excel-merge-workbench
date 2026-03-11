@@ -13,6 +13,7 @@ interface WorksheetSelectionProps {
   selectedFiles: ExcelFile[];
   selectedWorksheets: WorksheetData[];
   onWorksheetsChange: (worksheets: WorksheetData[]) => void;
+  onFileReadError: (fileId: string, message: string) => void;
   keyColumn?: string;
   onKeyColumnChange: (keyColumn: string) => void;
   onNext: () => void;
@@ -23,6 +24,7 @@ export function WorksheetSelection({
   selectedFiles,
   selectedWorksheets,
   onWorksheetsChange,
+  onFileReadError,
   keyColumn,
   onKeyColumnChange,
   onNext,
@@ -81,6 +83,10 @@ export function WorksheetSelection({
     const file = selectedFiles.find(f => f.id === fileId);
     
     if (!file) return;
+    if (file.readError) {
+      onFileReadError(fileId, file.readError);
+      return;
+    }
     
     // Handle "Not Selected" option
     if (worksheetName === 'NOT_SELECTED') {
@@ -119,22 +125,7 @@ export function WorksheetSelection({
       }
     } catch (error) {
       console.error('Failed to parse worksheet:', error);
-      // Fallback with basic column names
-      const newWorksheet: WorksheetData = {
-        fileId,
-        worksheetName,
-        headerRow: existing?.headerRow || 1,
-        columns: ['Column A', 'Column B', 'Column C'], // Fallback
-        keyColumn: existing?.keyColumn
-      };
-
-      if (existing) {
-        onWorksheetsChange(
-          selectedWorksheets.map(w => w.fileId === fileId ? newWorksheet : w)
-        );
-      } else {
-        onWorksheetsChange([...selectedWorksheets, newWorksheet]);
-      }
+      onFileReadError(fileId, 'This file could not be read. Please re-select it from disk.');
     }
   };
 
@@ -143,6 +134,10 @@ export function WorksheetSelection({
     const file = selectedFiles.find(f => f.id === fileId);
     
     if (!worksheet || !file) return;
+    if (file.readError) {
+      onFileReadError(fileId, file.readError);
+      return;
+    }
     
     try {
       const columns = await parseWorksheetColumns(file.file, worksheet.worksheetName, headerRow);
@@ -154,6 +149,7 @@ export function WorksheetSelection({
       );
     } catch (error) {
       console.error('Failed to update header row:', error);
+      onFileReadError(fileId, 'This file could not be read. Please re-select it from disk.');
     }
   };
 
@@ -209,12 +205,8 @@ export function WorksheetSelection({
         };
       } catch (error) {
         console.error(`Failed to parse ${file.name}:`, error);
-        return {
-          fileId: file.id,
-          worksheetName: globalWorksheet,
-          headerRow: globalHeaderRow,
-          columns: ['Column A', 'Column B', 'Column C'] // Fallback
-        };
+        onFileReadError(file.id, 'This file could not be read. Please re-select it from disk.');
+        return null;
       }
     });
     
