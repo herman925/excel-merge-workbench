@@ -68,10 +68,10 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     
-    // Filter Excel files and limit to 5
-    const excelFiles = files.filter(file => 
+    // Filter Excel files and limit to 10
+    const excelFiles = files.filter(file =>
       file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
-    ).slice(0, 5 - selectedFiles.length);
+    ).slice(0, 10 - selectedFiles.length);
 
     if (excelFiles.length === 0) return;
 
@@ -243,7 +243,7 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
       <CardHeader className="text-center">
         <CardTitle className="text-2xl text-excel-primary">Select Excel Files</CardTitle>
         <CardDescription className="text-lg">
-          Choose 2-5 Excel files to combine their worksheets
+          Choose 2-10 Excel files to combine their worksheets
         </CardDescription>
       </CardHeader>
 
@@ -286,7 +286,7 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
             <Button 
               onClick={() => fileInputRef.current?.click()}
               className="bg-gradient-primary hover:opacity-90"
-              disabled={selectedFiles.length >= 5}
+              disabled={selectedFiles.length >= 10}
             >
               <Upload className="mr-2 h-4 w-4" />
               Browse Files
@@ -313,7 +313,7 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
             disabled={isLoading}
           />
           <p className="text-sm text-muted-foreground mt-2">
-            Maximum 5 files • Excel formats only
+            Maximum 10 files • Excel formats only
           </p>
         </div>
 
@@ -338,7 +338,7 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
            <div className="space-y-4">
              <div className="flex items-center justify-between">
                <h3 className="text-lg font-medium text-excel-primary">
-                 Selected Files ({selectedFiles.length}/5)
+                 Selected Files ({selectedFiles.length}/10)
                </h3>
                <Button
                  variant="outline"
@@ -411,7 +411,7 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
                 <p className="font-medium text-excel-accent-green">Requirements</p>
                 <ul className="text-sm space-y-1 text-muted-foreground">
                   <li>• Minimum 2 files required to proceed</li>
-                  <li>• Maximum 5 files can be selected</li>
+                  <li>• Maximum 10 files can be selected</li>
                   <li>• Only .xlsx and .xls formats supported</li>
                   <li>• Files should contain similar data structures</li>
                 </ul>
