@@ -55,12 +55,16 @@ export function FileSelection({ selectedFiles, onFilesChange, onNext }: FileSele
       };
     } catch (error) {
       console.error(`Failed to parse ${file.name}:`, error);
+      const msg = error instanceof Error ? error.message : String(error);
+      const locked = /password|encrypt/i.test(msg);
       return {
         id,
         name: file.name,
         file,
         worksheets: ['Sheet1'],
-        readError: 'This file could not be read. Please re-select it from disk.',
+        readError: locked
+          ? 'This file is password-protected. Remove the password in Excel (File → Info → Protect Workbook → Encrypt), re-save, then re-select it here.'
+          : 'This file could not be read. Please re-select it from disk.',
       };
     }
   };

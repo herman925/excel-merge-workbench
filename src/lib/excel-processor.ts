@@ -98,6 +98,11 @@ export class ExcelProcessor {
     const totalRows = Array.from(fileDataMap.values()).reduce((sum, data) => sum + data.length, 0);
     console.log(`Processed ${totalRows} total rows from ${successfulFiles} files`);
 
+    // ponytail: hard ceiling so the tab dies with a clear message instead of an OOM crash; stream to a Worker if bigger merges are ever needed
+    if (totalRows > 1_500_000) {
+      throw new Error(`Too many rows to merge at once (${totalRows.toLocaleString()} across all files). The browser runs out of memory above ~1.5M rows — split the data across runs or remove unneeded files.`);
+    }
+
     let combinedRowsData: RowData[];
 
     console.log('Global key column:', this.keyColumn);
@@ -410,23 +415,28 @@ export class ExcelProcessor {
   }
 
   static generateCSVWithBOM(data: any[][]): Blob {
-    // Convert data to CSV format
-    const csvContent = data.map(row => 
-      row.map(cell => {
-        const cellValue = cell === null || cell === undefined ? '' : String(cell);
-        // Escape quotes and wrap in quotes if contains comma, quote, or newline
-        if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
-          return `"${cellValue.replace(/"/g, '""')}"`;
-        }
-        return cellValue;
-      }).join(',')
-    ).join('\n');
+    // Escape quotes and wrap in quotes if cell contains comma, quote, or newline
+    const encodeRow = (row: any[]) =>
+      row
+        .map(cell => {
+          const cellValue = cell === null || cell === undefined ? '' : String(cell);
+          if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
+            return `"${cellValue.replace(/"/g, '""')}"`;
+          }
+          return cellValue;
+        })
+        .join(',');
 
-    // Add UTF-8 BOM for proper Unicode handling
-    const BOM = '\uFEFF';
-    const csvWithBOM = BOM + csvContent;
+    // Encode in chunks and hand the Blob an array of parts — avoids building one
+    // giant intermediate string (was: full-data map + join ≈ 2× memory at peak).
+    const CHUNK = 5000;
+    const parts: string[] = ['\uFEFF'];
+    for (let i = 0; i < data.length; i += CHUNK) {
+      if (i > 0) parts.push('\n');
+      parts.push(data.slice(i, i + CHUNK).map(encodeRow).join('\n'));
+    }
 
-    return new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
+    return new Blob(parts, { type: 'text/csv;charset=utf-8;' });
   }
 
   static downloadFile(blob: Blob, filename: string) {
@@ -516,32 +526,35 @@ export class ExcelProcessor {
 
   private combineDataByWorksheetKeys(fileDataMap: Map<string, RowData[]>): RowData[] {
     console.log('Using worksheet-specific key columns');
-    
+
+    // Resolve column indexes ONCE per file (was: indexOf inside every row loop — O(rows×mappings×cols))
+    const perFile = new Map<string, { keyIdx: number; mapIdx: number[] }>();
+    fileDataMap.forEach((_rows, fileId) => {
+      const worksheet = this.worksheets.find(w => w.fileId === fileId);
+      if (!worksheet) return;
+      const keyColumnName = worksheet.keyColumn || this.keyColumn;
+      if (!keyColumnName) return;
+      const keyIdx = worksheet.columns.indexOf(keyColumnName);
+      if (keyIdx < 0) return;
+      perFile.set(fileId, {
+        keyIdx,
+        mapIdx: this.mappings.map(m => {
+          const fm = m.mappings.find(x => x.fileId === fileId);
+          return fm ? worksheet.columns.indexOf(fm.column) : -1;
+        }),
+      });
+    });
+
     // Create a map of key values to combined rows
     const keyRowMap = new Map<string, any[]>();
 
     // First pass: collect all unique key values from all files using their specific key columns
     fileDataMap.forEach((fileRows, fileId) => {
-      const worksheet = this.worksheets.find(w => w.fileId === fileId);
-      if (!worksheet) return;
-
-      // Use individual worksheet key column, fallback to global key column
-      const keyColumnName = worksheet.keyColumn || this.keyColumn;
-      if (!keyColumnName) {
-        console.log(`No key column defined for worksheet in file ${fileId}`);
-        return;
-      }
-
-      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
-      if (keyColumnIndex < 0) {
-        console.log(`Key column "${keyColumnName}" not found in worksheet for file ${fileId}`);
-        return;
-      }
-
-      console.log(`File ${fileId}: Using key column "${keyColumnName}" at index ${keyColumnIndex}`);
+      const info = perFile.get(fileId);
+      if (!info) return;
 
       fileRows.forEach(row => {
-        const keyValue = String(row.data[keyColumnIndex] || '').trim();
+        const keyValue = String(row.data[info.keyIdx] || '').trim();
         if (keyValue && !keyRowMap.has(keyValue)) {
           keyRowMap.set(keyValue, new Array(this.mappings.length).fill(''));
         }
@@ -552,31 +565,22 @@ export class ExcelProcessor {
 
     // Second pass: populate the combined rows
     fileDataMap.forEach((fileRows, fileId) => {
-      const worksheet = this.worksheets.find(w => w.fileId === fileId);
-      if (!worksheet) return;
-
-      const keyColumnName = worksheet.keyColumn || this.keyColumn;
-      if (!keyColumnName) return;
-
-      const keyColumnIndex = worksheet.columns.indexOf(keyColumnName);
-      if (keyColumnIndex < 0) return;
+      const info = perFile.get(fileId);
+      if (!info) return;
 
       fileRows.forEach(row => {
-        const keyValue = String(row.data[keyColumnIndex] || '').trim();
+        const keyValue = String(row.data[info.keyIdx] || '').trim();
         if (!keyValue || !keyRowMap.has(keyValue)) return;
 
         const combinedRow = keyRowMap.get(keyValue)!;
 
         // Apply all column mappings for this file
         this.mappings.forEach((mapping, mappingIndex) => {
-          const fileMapping = mapping.mappings.find(m => m.fileId === fileId);
-          if (fileMapping) {
-            const columnIndex = worksheet.columns.indexOf(fileMapping.column);
-            if (columnIndex >= 0 && columnIndex < row.data.length) {
-              const cellValue = row.data[columnIndex];
-              if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
-                combinedRow[mappingIndex] = cellValue;
-              }
+          const columnIndex = info.mapIdx[mappingIndex];
+          if (columnIndex >= 0 && columnIndex < row.data.length) {
+            const cellValue = row.data[columnIndex];
+            if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+              combinedRow[mappingIndex] = cellValue;
             }
           }
         });

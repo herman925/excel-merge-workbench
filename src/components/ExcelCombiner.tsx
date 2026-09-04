@@ -6,9 +6,10 @@ import { ColumnPreview } from './excel-combiner/ColumnPreview';
 import { ColumnMapping } from './excel-combiner/ColumnMapping';
 import { RearrangeColumns } from './excel-combiner/RearrangeColumns';
 import { Results } from './excel-combiner/Results';
+import { ConfigManager, ImportResult, PendingItem } from './excel-combiner/ConfigManager';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
-import { ChevronRight, FileSpreadsheet } from 'lucide-react';
+import { ChevronRight, FileSpreadsheet, AlertTriangle } from 'lucide-react';
 import { ExcelProcessor, ProcessingResults } from '../lib/excel-processor';
 import { useToast } from '../hooks/use-toast';
 
@@ -45,6 +46,7 @@ export function ExcelCombiner() {
   const [allowDoubleMapping, setAllowDoubleMapping] = useState(false);
   const [results, setResults] = useState<ProcessingResults | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [pending, setPending] = useState<PendingItem[]>([]);
   const { toast } = useToast();
 
   const steps = [
@@ -109,6 +111,7 @@ export function ExcelCombiner() {
 
     setSelectedFiles(files);
     setResults(null);
+    setPending((prev) => prev.filter((p) => p.step !== 'file-selection'));
 
     const retainedWorksheets = selectedWorksheets.filter((worksheet) => validFileIds.has(worksheet.fileId));
     const reparsedWorksheets = await Promise.all(
@@ -204,6 +207,7 @@ export function ExcelCombiner() {
   const handleMappingsChange = (mappings: ColumnMapping[]) => {
     setColumnMappings(normalizeColumnMappings(mappings, allowDoubleMapping));
     setResults(null);
+    setPending((prev) => prev.filter((p) => p.step !== 'column-mapping'));
   };
 
   const handleAllowDoubleMappingChange = (value: boolean) => {
@@ -285,11 +289,40 @@ export function ExcelCombiner() {
     }
   };
 
+  const handleWorksheetsChange = (worksheets: WorksheetData[]) => {
+    setSelectedWorksheets(worksheets);
+    setPending((prev) => prev.filter((p) => p.step !== 'worksheet-selection'));
+  };
+
   const handleStepClick = (stepId: string) => {
     const targetIndex = steps.findIndex(step => step.id === stepId);
     if (targetIndex <= currentStepIndex) {
       setCurrentStep(stepId as Step);
     }
+  };
+
+  const handleApplyImport = (result: ImportResult) => {
+    setSelectedFiles(result.files);
+    setSelectedWorksheets(result.worksheets);
+    setColumnMappings(result.columnMappings);
+    setKeyColumn(result.keyColumn);
+    setAllowIncompleteMappings(
+      result.allowIncompleteMappings ||
+      result.pending.some(p => p.step === 'column-mapping')
+    );
+    setAllowDoubleMapping(result.allowDoubleMapping);
+    setPending(result.pending);
+    setResults(null);
+
+    // Advance to the furthest step the import could populate, or back to step 1 if files are missing.
+    if (result.files.length === 0) {
+      setCurrentStep('file-selection');
+    } else if (result.worksheets.length === 0) {
+      setCurrentStep('worksheet-selection');
+    } else {
+      setCurrentStep('column-mapping');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -303,6 +336,26 @@ export function ExcelCombiner() {
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Combine worksheets from multiple Excel files into a single CSV with intelligent column mapping
           </p>
+          <div className="flex justify-center mt-4">
+            <ConfigManager
+              files={selectedFiles}
+              worksheets={selectedWorksheets}
+              columnMappings={columnMappings}
+              keyColumn={keyColumn}
+              allowIncompleteMappings={allowIncompleteMappings}
+              allowDoubleMapping={allowDoubleMapping}
+              onApplyImport={handleApplyImport}
+            />
+          </div>
+          {pending.length > 0 && (
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {pending.map((item, i) => (
+                <Badge key={i} variant="outline" className="border-orange-300 text-orange-700 dark:text-orange-300">
+                  <AlertTriangle className="h-3 w-3 mr-1" /> Pending: {item.message}
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Progress Steps */}
@@ -367,7 +420,7 @@ export function ExcelCombiner() {
             <WorksheetSelection
               selectedFiles={selectedFiles}
               selectedWorksheets={selectedWorksheets}
-              onWorksheetsChange={setSelectedWorksheets}
+              onWorksheetsChange={handleWorksheetsChange}
               onFileReadError={handleFileReadError}
               keyColumn={keyColumn}
               onKeyColumnChange={setKeyColumn}
@@ -381,7 +434,7 @@ export function ExcelCombiner() {
             <ColumnPreview
               selectedFiles={selectedFiles}
               selectedWorksheets={selectedWorksheets}
-              onWorksheetsChange={setSelectedWorksheets}
+              onWorksheetsChange={handleWorksheetsChange}
               onFileReadError={handleFileReadError}
               onNext={handleNext}
               onBack={handleBack}
@@ -427,6 +480,7 @@ export function ExcelCombiner() {
               setAllowDoubleMapping(false);
               setCurrentStep('file-selection');
               setResults(null);
+              setPending([]);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             worksheets={selectedWorksheets}
